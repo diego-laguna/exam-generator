@@ -1,9 +1,12 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 
 from app.auth import router as auth_router
 
 app = FastAPI(title="learn-assistant")
-app.include_router(auth_router)
+
+api_v1 = APIRouter(prefix="/api/v1")
+api_v1.include_router(auth_router)
+app.include_router(api_v1)
 
 
 @app.get("/health")

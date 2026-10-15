@@ -28,5 +28,11 @@ Full requirements: `docs/PRD-aws-saa-study-assistant.md` (not auto-loaded). Read
 - No secrets in the repo.
 
 ## Status
-PRD milestones: M1 (foundation) and part of M2 (auth) are done. Code differs from the PRD in several places
-(token lifetime, refresh tokens, `/api/v1` prefix, roles, pg version); these are being reconciled.
+PRD milestones: M1 (foundation) and M2 (auth) are done except `POST /users` and the admin seed.
+Deviations from the PRD, decided:
+- Routes live under `/api/v1`; `/health` stays unversioned.
+- Access token 15 min; refresh tokens are opaque, hashed, single-use (rotated), 7 days.
+- Logout deletes the given refresh token and denylists the access token JTI (`revoked_tokens`, purged after expiry).
+- Password change must call `revoke_all_refresh_tokens` (no password-change endpoint yet).
+- Refresh tokens are deleted rather than flagged `revoked_at`.
+- Postgres is pg17 (PRD updated).

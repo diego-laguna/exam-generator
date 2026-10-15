@@ -125,6 +125,7 @@ All endpoints are under `/api/v1`. Exam generation returns `202 Accepted`, and t
 - Passwords are hashed with bcrypt or argon2.
 - Access tokens are JWTs that expire after about 15 minutes. Claims: `sub`, `role`, `exp`, `iat`, `jti`.
 - Refresh tokens are long-lived, stored as a hash in the database, revocable, and rotated on use.
+- **Decision:** refresh tokens are deleted (not flagged) on use, on logout, and on password change. Logout also denylists the current access token's `jti` until it expires, so logout takes effect immediately.
 
 ### Authorization layers (composable FastAPI dependencies)
 1. `get_current_user`: validates the JWT and loads the user.
@@ -157,7 +158,7 @@ The embedding dimension `n` depends on the embedding model chosen.
 | Concern | Decision |
 |---|---|
 | Language / framework | Python, FastAPI |
-| Database | **PostgreSQL + pgvector** (single database for relational data and vectors). Local image: `pgvector/pgvector:pg16` |
+| Database | **PostgreSQL + pgvector** (single database for relational data and vectors). Local image: `pgvector/pgvector:pg17` |
 | ORM / migrations | SQLAlchemy + Alembic. The first migration runs `CREATE EXTENSION vector;` |
 | Vector index | HNSW (optional at POC scale) |
 | JWT | PyJWT |
