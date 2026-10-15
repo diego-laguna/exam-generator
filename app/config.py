@@ -10,9 +10,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
-    # Single built-in user until a real user store exists.
-    auth_username: str
-    auth_password_hash: str
+    database_url: str = "postgresql+psycopg://learn:learn@localhost:5432/learn_assistant"
 
 
 @lru_cache

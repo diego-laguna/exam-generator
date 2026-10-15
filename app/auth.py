@@ -1,21 +1,27 @@
+from datetime import UTC, datetime
 from typing import Annotated
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
+from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
 
-from app.config import Settings, get_settings
+from app.db import get_db
+from app.models import RevokedToken, User
 from app.security import (
     DUMMY_HASH,
     create_access_token,
     decode_access_token,
-    denylist,
     password_hash,
 )
 
 router = APIRouter(tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
+
+DbSession = Annotated[Session, Depends(get_db)]
 
 
 class Token(BaseModel):
@@ -23,7 +29,9 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
-def get_current_claims(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
+def get_current_claims(
+    token: Annotated[str, Depends(oauth2_scheme)], db: DbSession
+) -> dict:
     unauthorized = HTTPException(
         status.HTTP_401_UNAUTHORIZED,
         "Invalid or expired token",
@@ -33,29 +41,35 @@ def get_current_claims(token: Annotated[str, Depends(oauth2_scheme)]) -> dict:
         claims = decode_access_token(token)
     except jwt.InvalidTokenError:
         raise unauthorized
-    if claims["jti"] in denylist:
+    if db.get(RevokedToken, claims["jti"]) is not None:
         raise unauthorized
     return claims
 
 
 @router.post("/login", response_model=Token)
-def login(
-    form: Annotated[OAuth2PasswordRequestForm, Depends()],
-    settings: Annotated[Settings, Depends(get_settings)],
-):
-    user_ok = form.username == settings.auth_username
-    hash_to_check = settings.auth_password_hash if user_ok else DUMMY_HASH
-    password_ok = password_hash.verify(form.password, hash_to_check)
-    if not (user_ok and password_ok):
+def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession):
+    user = db.scalar(select(User).where(User.username == form.username))
+    # Always run a hash verification so timing doesn't reveal valid usernames.
+    password_ok = password_hash.verify(
+        form.password, user.password_hash if user else DUMMY_HASH
+    )
+    if not (user and user.is_active and password_ok):
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED,
             "Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return Token(access_token=create_access_token(form.username))
+    return Token(access_token=create_access_token(str(user.id)))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(claims: Annotated[dict, Depends(get_current_claims)]):
-    denylist.add(claims["jti"], claims["exp"])
+def logout(claims: Annotated[dict, Depends(get_current_claims)], db: DbSession):
+    # Drop revocations for tokens that have already expired, then record this one.
+    db.execute(delete(RevokedToken).where(RevokedToken.expires_at < datetime.now(UTC)))
+    db.execute(
+        insert(RevokedToken)
+        .values(jti=claims["jti"], expires_at=datetime.fromtimestamp(claims["exp"], UTC))
+        .on_conflict_do_nothing()
+    )
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

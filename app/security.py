@@ -1,4 +1,3 @@
-import time
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -32,26 +31,3 @@ def decode_access_token(token: str) -> dict:
         algorithms=[settings.jwt_algorithm],
         options={"require": ["exp", "sub", "jti"]},
     )
-
-
-class TokenDenylist:
-    """In-memory revoked-token store (jti -> exp). Resets on restart and is
-    per-process; swap for Redis/DB if running multiple workers."""
-
-    def __init__(self) -> None:
-        self._revoked: dict[str, float] = {}
-
-    def add(self, jti: str, exp: float) -> None:
-        self._purge()
-        self._revoked[jti] = exp
-
-    def __contains__(self, jti: str) -> bool:
-        self._purge()
-        return jti in self._revoked
-
-    def _purge(self) -> None:
-        now = time.time()
-        self._revoked = {j: e for j, e in self._revoked.items() if e > now}
-
-
-denylist = TokenDenylist()
