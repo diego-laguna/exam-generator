@@ -51,3 +51,14 @@ def require_role(*roles: Role):
         return user
 
     return checker
+
+
+# Route-level access shortcuts. Used as `dependencies=[...]` so the check runs before the handler.
+AdminOnly = Depends(require_role(Role.admin))
+StudentOnly = Depends(require_role(Role.student))
+AnyUser = Depends(get_current_user)
+
+
+def not_implemented() -> None:
+    """Placeholder body for endpoints whose access rules exist but logic doesn't yet."""
+    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "Not implemented yet")
