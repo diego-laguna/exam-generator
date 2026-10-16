@@ -191,6 +191,7 @@ The embedding dimension `n` depends on the embedding model chosen.
 - All time comparisons use the server clock in UTC.
 - Configuration comes from environment variables (pydantic-settings), and no secrets are kept in the repo.
 - OpenAPI docs are generated automatically and serve as the API contract.
+- Code is type-annotated and statically checked with pyright (standard mode, zero errors). Runtime validation uses Pydantic.
 - Tests use pytest. Authorization dependencies and time rules get unit tests that use an injectable clock. The full exam flow gets an integration test with a stubbed LLM.
 
 ## 13. Milestones

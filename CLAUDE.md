@@ -17,10 +17,12 @@ Full requirements: `docs/PRD-aws-saa-study-assistant.md` (not auto-loaded). Read
 - Seed sample users: `uv run python -m scripts.seed` (alice=admin, bob/carol=students)
 - Bootstrap an admin: `uv run python -m scripts.create_admin <username>` (prompts, or set `ADMIN_PASSWORD`)
 - Run: `uv run fastapi dev app/main.py`
+- Type check: `uv run pyright` (standard mode; must stay at 0 errors)
 - Test: `uv run pytest` (needs the DB up; uses its own `learn_assistant_test` database)
 - Config: copy `.env.example` to `.env`
 
 ## Rules that always apply
+- Code is fully type-annotated and must pass pyright; runtime validation is Pydantic (requests, settings, LLM JSON).
 - Server clock (UTC) is the only source of time; never trust client time.
 - All authorization lives in FastAPI dependencies, not in route handlers.
 - Non-owned resources return 404, not 403.

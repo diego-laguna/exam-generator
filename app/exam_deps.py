@@ -41,7 +41,7 @@ def require_active_window(exam: OwnedExam, clock: ClockDep) -> Exam:
     if exam.status != ExamStatus.in_progress:
         raise error(status.HTTP_409_CONFLICT, "EXAM_NOT_AVAILABLE", "The exam is not available")
     now = clock()
-    if exam.ends_at is not None and not (exam.started_at <= now < exam.ends_at):
+    if exam.ends_at is not None and not (exam.started_at and exam.started_at <= now < exam.ends_at):
         raise error(status.HTTP_409_CONFLICT, "EXAM_WINDOW_CLOSED", "The exam time has expired")
     return exam
 

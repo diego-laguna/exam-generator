@@ -129,6 +129,7 @@ def test_revoke_all_refresh_tokens():
     t1, t2 = tokens(), tokens()
     with SessionLocal() as db:
         uid = db.scalar(select(User.id).where(User.username == "alice"))
+        assert uid is not None
         revoke_all_refresh_tokens(db, uid)
         db.commit()
     assert refresh(t1["refresh_token"]).status_code == 401

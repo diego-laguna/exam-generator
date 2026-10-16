@@ -24,7 +24,7 @@ from app.models import (
     TaskStatement,
 )
 
-router = APIRouter(tags=["exams"])
+router = APIRouter(tags=["exams"], dependencies=[StudentOnly])
 
 
 class ExamCreate(BaseModel):
@@ -96,7 +96,6 @@ def exam_out(db: Session, exam: Exam, with_questions: bool = False) -> ExamOut:
     "/exams",
     response_model=ExamOut,
     status_code=status.HTTP_202_ACCEPTED,
-    dependencies=[StudentOnly],
 )
 def create_exam(body: ExamCreate, user: CurrentUser, db: DbSession):
     if body.domains:
@@ -114,12 +113,12 @@ def create_exam(body: ExamCreate, user: CurrentUser, db: DbSession):
     return exam_out(db, exam)
 
 
-@router.get("/exams/{exam_id}", response_model=ExamOut, dependencies=[StudentOnly])
+@router.get("/exams/{exam_id}", response_model=ExamOut)
 def get_exam(exam: OwnedExam, db: DbSession):
     return exam_out(db, exam, with_questions=True)
 
 
-@router.post("/exams/{exam_id}/start", response_model=ExamOut, dependencies=[StudentOnly])
+@router.post("/exams/{exam_id}/start", response_model=ExamOut)
 def start_exam(exam: OwnedExam, db: DbSession, clock: ClockDep):
     if exam.status in (ExamStatus.in_progress, ExamStatus.finished):
         raise error(status.HTTP_409_CONFLICT, "EXAM_ALREADY_STARTED", "The exam was already started")
@@ -152,12 +151,11 @@ class AnswerOut(BaseModel):
     "/exams/{exam_id}/answers/{question_id}",
     response_model=AnswerOut,
     response_model_exclude_none=True,
-    dependencies=[StudentOnly],
 )
 def save_answer(question_id: int, body: AnswerIn, exam: ActiveExam, db: DbSession, clock: ClockDep):
-    if db.get(ExamQuestion, (exam.id, question_id)) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not in this exam")
     question = db.get(Question, question_id)
+    if question is None or db.get(ExamQuestion, (exam.id, question_id)) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not in this exam")
     now = clock()
     is_correct = body.selected_option == question.correct_option
     db.execute(
@@ -187,7 +185,7 @@ def save_answer(question_id: int, body: AnswerIn, exam: ActiveExam, db: DbSessio
     return out
 
 
-@router.post("/exams/{exam_id}/submit", response_model=ExamOut, dependencies=[StudentOnly])
+@router.post("/exams/{exam_id}/submit", response_model=ExamOut)
 def submit_exam(exam: ActiveExam, db: DbSession, clock: ClockDep):
     finalize_exam(db, exam, submitted_at=clock())
     db.commit()
@@ -218,7 +216,7 @@ class ResultsOut(BaseModel):
     questions: list[ResultQuestion]
 
 
-@router.get("/exams/{exam_id}/results", response_model=ResultsOut, dependencies=[StudentOnly])
+@router.get("/exams/{exam_id}/results", response_model=ResultsOut)
 def get_results(exam: UnlockedExam, db: DbSession):
     rows = db.execute(
         select(ExamQuestion.position, Question, Domain.name, TaskStatement.code, Answer)
