@@ -13,7 +13,8 @@ Full requirements: `docs/PRD-aws-saa-study-assistant.md` (not auto-loaded). Read
 ## Commands
 - DB: `docker compose up -d --wait`
 - Migrate: `uv run alembic upgrade head` (new: `uv run alembic revision --autogenerate -m "..."`)
-- Seed sample users: `uv run python -m scripts.seed`
+- Seed sample users: `uv run python -m scripts.seed` (alice=admin, bob/carol=students)
+- Bootstrap an admin: `uv run python -m scripts.create_admin <username>` (prompts, or set `ADMIN_PASSWORD`)
 - Run: `uv run fastapi dev app/main.py`
 - Test: `uv run pytest` (needs the DB up; uses its own `learn_assistant_test` database)
 - Config: copy `.env.example` to `.env`
@@ -28,7 +29,7 @@ Full requirements: `docs/PRD-aws-saa-study-assistant.md` (not auto-loaded). Read
 - No secrets in the repo.
 
 ## Status
-PRD milestones: M1 (foundation) and M2 (auth) are done except `POST /users` and the admin seed.
+PRD milestones: M1 (foundation) and M2 (auth, `POST /users`, admin bootstrap) are done. Next: M4 (exams with fixture questions), then M3.
 Deviations from the PRD, decided:
 - Routes live under `/api/v1`; `/health` stays unversioned.
 - Access token 15 min; refresh tokens are opaque, hashed, single-use (rotated), 7 days.

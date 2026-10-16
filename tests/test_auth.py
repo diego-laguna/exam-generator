@@ -1,3 +1,5 @@
+from datetime import UTC, datetime
+
 import jwt
 import pytest
 from fastapi import Depends
@@ -149,3 +151,15 @@ def test_require_role(creds, path, status):
 
 def test_old_unversioned_routes_are_gone():
     assert client.post("/login").status_code == 404
+
+
+def test_expired_access_token_rejected():
+    # FR-AUTH-2: an expired token gets 401 on protected endpoints.
+    s = get_settings()
+    now = int(datetime.now(UTC).timestamp())
+    expired = jwt.encode(
+        {"sub": "1", "role": "admin", "iat": now - 120, "exp": now - 60, "jti": "expired-jti"},
+        s.jwt_secret_key,
+        algorithm=s.jwt_algorithm,
+    )
+    assert client.get("/_test/admin", headers=bearer(expired)).status_code == 401
