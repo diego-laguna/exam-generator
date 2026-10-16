@@ -19,7 +19,7 @@ The full requirements are in [`docs/PRD-aws-saa-study-assistant.md`](docs/PRD-aw
 |---|---|
 | M1 Foundation (Docker Compose, Postgres + pgvector, Alembic, settings, health check) | Done |
 | M2 Auth (users, login, refresh, logout, role and ownership dependencies, admin bootstrap) | Done |
-| M3 Ingestion (sources, chunking, embeddings, samples) | Not started. Endpoints exist as `501` stubs with role checks |
+| M3 Ingestion (sources, chunking, embeddings, samples) | Done |
 | M4 Exams (lifecycle, time rules, answers, results, stats) | Done, using a small bank of hand-written fixture questions |
 | M5 Question generation (retrieval, LLM generation, blind validation) | Not started |
 | M6 Adaptive weighting from stats | Not started |
@@ -30,12 +30,13 @@ Until M5 lands, exams are built from 20 fixture questions rather than generated 
 
 - **Python 3.14**, managed with [uv](https://docs.astral.sh/uv/)
 - **FastAPI** for the API, with OpenAPI docs generated automatically
-- **PostgreSQL + pgvector** (single database for relational data and, later, embeddings), run locally with Docker Compose
+- **PostgreSQL + pgvector** (single database for relational data and embeddings), run locally with Docker Compose
 - **SQLAlchemy 2** (typed models) and **Alembic** migrations, via psycopg 3
 - **PyJWT** for access tokens and **pwdlib (argon2)** for password hashing
 - **pydantic-settings** for configuration from environment variables
 - **pytest** for tests and **pyright** for static type checking
-- Planned: the Anthropic API for generation and validation, and a local sentence-transformers model for embeddings
+- **fastembed** (ONNX, `BAAI/bge-small-en-v1.5`, 384 dimensions) for local embeddings, **httpx2** and **BeautifulSoup** for fetching and parsing documentation pages
+- Planned: the Anthropic API for generation and validation
 
 ## Getting started
 
@@ -129,9 +130,22 @@ Using `"mode": "exam"` instead gives a timed exam: 2 minutes per question (130 m
 | Anyone | `GET /health`, `POST /auth/login`, `POST /auth/refresh` |
 | Any signed-in user | `POST /auth/logout`, `GET /sources`, `GET /me/stats` |
 | `student` | Everything under `/exams` (you can only see your own exams) |
-| `admin` | `POST /users`, and `POST`/`DELETE /sources`, `POST /samples` (not yet implemented) |
+| `admin` | `POST /users`, `POST`/`DELETE /sources`, `POST /samples` |
 
 Access tokens last 15 minutes. Refresh them with `POST /auth/refresh`, which also rotates the refresh token. `POST /auth/logout` revokes the current access token immediately.
+
+### Add documentation to the knowledge base
+
+Admins ingest documentation pages. Only `https://docs.aws.amazon.com` and `https://aws.amazon.com` URLs are accepted.
+
+```bash
+ADMIN=$(curl -s -X POST $API/auth/login -d 'username=alice&password=wonderland' | jq -r .access_token)
+curl -s -X POST $API/sources -H "Authorization: Bearer $ADMIN" -H 'Content-Type: application/json' \
+  -d '{"url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage-class-intro.html"}'
+curl -s $API/sources -H "Authorization: Bearer $ADMIN" | jq   # status: pending -> ingesting -> ready
+```
+
+Ingestion runs in the background: the page is fetched, split into overlapping chunks at its headings, embedded, and stored in PostgreSQL with pgvector. The first ingestion downloads the embedding model (about 130 MB, cached in `.cache/fastembed`).
 
 ## Tests and checks
 
@@ -142,7 +156,9 @@ uv run pytest        # run the test suite
 uv run pyright       # static type check (must report 0 errors)
 ```
 
-The suite covers authentication and token handling, role-based access for every endpoint, exam time rules (using an injectable clock), results locking and statistics.
+The tests never download the embedding model or touch the network; they use a deterministic fake embedder and fetcher.
+
+The suite covers authentication and token handling, role-based access for every endpoint, exam time rules (using an injectable clock), results locking statistics, URL allowlisting (including SSRF bypass attempts), chunking, and pgvector similarity search.
 
 ## Project layout
 
@@ -159,7 +175,12 @@ app/
   exam_deps.py       Ownership, active-window and results-unlocked dependencies
   exam_service.py    Exam creation, question selection, scoring
   stats.py           /me/stats
-  sources.py         /sources and /samples (stubs)
+  sources.py         /sources and /samples
+  fetching.py        Allowlisted, size-capped page fetching (SSRF guard)
+  chunking.py        HTML -> heading-aware chunks
+  embeddings.py      Local embedding model
+  ingestion.py       Background ingestion job
+  retrieval.py       Similarity search over chunks
   clock.py           Injectable server clock
 migrations/          Alembic migrations
 scripts/             Seed and admin-bootstrap scripts, fixture questions
@@ -181,3 +202,6 @@ Settings come from environment variables or a `.env` file (see `.env.example`).
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
 | `EXAM_MINUTES_PER_QUESTION` | `2` | Exam-mode time limit per question |
+| `INGESTION_ALLOWED_HOSTS` | AWS docs hosts | Hosts that sources may come from (JSON list) |
+| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Must output 384 dimensions |
+| `CHUNK_MAX_CHARS` / `CHUNK_OVERLAP_CHARS` | `1200` / `150` | Chunking |

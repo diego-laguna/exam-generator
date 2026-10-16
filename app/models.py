@@ -1,11 +1,13 @@
 import enum
 from datetime import datetime
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     ARRAY,
     DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -16,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.embeddings import EMBEDDING_DIM
 
 
 class Role(enum.StrEnum):
@@ -33,6 +36,13 @@ class ExamStatus(enum.StrEnum):
     ready = "ready"
     in_progress = "in_progress"
     finished = "finished"
+    failed = "failed"
+
+
+class SourceStatus(enum.StrEnum):
+    pending = "pending"
+    ingesting = "ingesting"
+    ready = "ready"
     failed = "failed"
 
 
@@ -153,3 +163,61 @@ class Answer(Base):
     selected_option: Mapped[str] = mapped_column(String(1))
     answered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     is_correct: Mapped[bool]
+
+
+def _hnsw_index(table: str) -> Index:
+    return Index(
+        f"ix_{table}_embedding_hnsw",
+        "embedding",
+        postgresql_using="hnsw",
+        postgresql_with={"m": 16, "ef_construction": 64},
+        postgresql_ops={"embedding": "vector_cosine_ops"},
+    )
+
+
+class Source(Base):
+    """A documentation page that is chunked and embedded for retrieval."""
+
+    __tablename__ = "sources"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    url: Mapped[str] = mapped_column(String(2048), unique=True)
+    title: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[SourceStatus] = mapped_column(_enum(SourceStatus))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class Chunk(Base):
+    __tablename__ = "chunks"
+    __table_args__ = (_hnsw_index("chunks"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(
+        ForeignKey("sources.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int]
+    content: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM))
+    # "metadata" is reserved by SQLAlchemy's declarative base, hence the attribute name.
+    meta: Mapped[dict] = mapped_column("metadata", JSONB, server_default=text("'{}'::jsonb"))
+
+
+class SampleQuestion(Base):
+    """Few-shot style exemplars. Never used as a source of facts."""
+
+    __tablename__ = "sample_questions"
+    __table_args__ = (_hnsw_index("sample_questions"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    domain_id: Mapped[int] = mapped_column(ForeignKey("domains.id"), index=True)
+    task_statement_id: Mapped[int | None] = mapped_column(ForeignKey("task_statements.id"))
+    stem: Mapped[str] = mapped_column(Text)
+    options: Mapped[dict[str, str]] = mapped_column(JSONB)
+    correct_option: Mapped[str] = mapped_column(String(1))
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )

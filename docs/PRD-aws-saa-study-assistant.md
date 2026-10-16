@@ -1,6 +1,6 @@
 # PRD — AWS SAA Study Assistant (POC)
 
-**Status:** Draft v0.1 — ready for spec/implementation in Claude Code
+**Status:** Draft v0.2. M1–M4 implemented (see section 13). Where the implementation differs from the original text, the section says so.
 **Type:** Proof of concept
 **Owner:** Diego Laguna
 
@@ -84,11 +84,12 @@ If validation discards a question, the pipeline retries up to N times per slot (
 | Rule | Exam mode | Practice mode |
 |---|---|---|
 | Question count | 65 (configurable) | User-defined |
-| Time limit | 130 minutes from `start` | None |
+| Time limit | 2 minutes per question from `start` (130 minutes for 65 questions) | None |
 | Answers after `ends_at` | Rejected (server clock) | N/A |
 | Explanations and correct answers | Locked until submitted or expired | Available after each answer |
 
 Additional rules:
+- **Implemented:** the exam duration is `question_count × 2` minutes (configurable), so an exam with fewer questions gets a proportionally shorter window.
 - `ends_at = started_at + duration`. Both are set server-side at `POST /exams/{id}/start`, and the client clock is never trusted.
 - An exam whose `ends_at` has passed is treated as expired and auto-finalized on next access.
 - **Optional:** a daily quota of exam generations per user, enforced on `POST /exams`. It also caps LLM spend.
@@ -100,15 +101,15 @@ All endpoints are under `/api/v1`. Exam generation returns `202 Accepted`, and t
 | Method & path | Purpose | Auth |
 |---|---|---|
 | `POST /auth/login` | Username + password → access token + refresh token | Public |
-| `POST /auth/refresh` | Issue a new access token | Refresh token |
-| `POST /auth/logout` | Revoke the refresh token | JWT |
+| `POST /auth/refresh` | Issue a new access token and a rotated refresh token (the old one is single-use) | Refresh token |
+| `POST /auth/logout` | Revoke the given refresh token (optional body) and the current access token | JWT |
 | `POST /users` | Create a user and assign a role | JWT + admin |
 | `POST /sources` | Ingest a documentation page (async chunk + embed) | JWT + admin |
 | `GET /sources` | List sources and ingestion status | JWT (any role) |
 | `DELETE /sources/{id}` | Remove a source and its chunks | JWT + admin |
-| `POST /samples` | Add sample (few-shot) questions | JWT + admin |
-| `POST /exams` | Create an exam. Body: `mode`, `source_ids` or `domains`, `question_count` → 202 + id | JWT + student (+ quota) |
-| `GET /exams/{id}` | Status (`generating` / `ready` / `in_progress` / `finished` / `failed`) and questions, never correct answers | JWT + owner |
+| `POST /samples` | Add up to 50 sample (few-shot) questions, each with a `task_statement` code or `domain_id`; all-or-nothing | JWT + admin |
+| `POST /exams` | Create an exam. Body: `mode`, `domains` (ids 1–4), `question_count` → 202 + id. `source_ids` arrives with generation (M5) | JWT + student (+ quota) |
+| `GET /exams/{id}` | Status (`generating` / `ready` / `in_progress` / `finished` / `failed`) and questions (only once started), never correct answers | JWT + owner |
 | `POST /exams/{id}/start` | Start the timer and set `started_at` / `ends_at` | JWT + owner |
 | `PUT /exams/{id}/answers/{question_id}` | Save or overwrite an answer | JWT + owner + active window |
 | `POST /exams/{id}/submit` | Finalize the exam | JWT + owner + active window |
@@ -118,6 +119,7 @@ All endpoints are under `/api/v1`. Exam generation returns `202 Accepted`, and t
 ### Source ingestion constraints
 - URLs are restricted to an allowlist (default: `docs.aws.amazon.com`, `aws.amazon.com`) to prevent SSRF.
 - Ingestion is admin-only. Students reference ingested sources by ID or by domain.
+- **Implemented:** only exact `https` host matches are accepted (no credentials or custom ports), redirects are re-validated on every hop, and fetches are capped in size, time and redirect count. Source errors are visible to admins only.
 
 ## 8. Authentication and authorization
 
@@ -136,22 +138,25 @@ All endpoints are under `/api/v1`. Exam generation returns `202 Accepted`, and t
 
 Route handlers should contain little beyond calls to services. All authorization lives in dependencies.
 
-## 9. Data model (initial)
+## 9. Data model
 
-- `users`: id, username (unique), password_hash, role, created_at
-- `refresh_tokens`: id, user_id, token_hash, expires_at, revoked_at
+As implemented (columns added or changed from the original draft are marked):
+
+- `users`: id, username (unique), password_hash, role, is_active *(added)*, created_at
+- `refresh_tokens`: id, user_id, token_hash, expires_at, created_at. Rows are deleted rather than flagged, so there is no `revoked_at` *(changed)*
+- `revoked_tokens` *(added)*: jti, expires_at. Access tokens revoked by logout, purged after expiry
 - `domains`: id, name, weight
 - `task_statements`: id, domain_id, code, description
-- `sources`: id, url, title, status (`pending` / `ingesting` / `ready` / `failed`), created_at
-- `chunks`: id, source_id, content, embedding `vector(n)`, metadata (jsonb)
-- `sample_questions`: id, domain_id, task_statement_id (nullable), stem, options (jsonb), correct_option, embedding `vector(n)`
-- `questions`: id, domain_id, task_statement_id, stem, options (jsonb), correct_option, explanation, cited_chunk_ids (int[]), validation (jsonb), model, created_at
-- `exams`: id, user_id, mode, status, question_count, started_at, ends_at, submitted_at, score
+- `sources`: id, url (unique), title, status (`pending` / `ingesting` / `ready` / `failed`), error *(added)*, created_at
+- `chunks`: id, source_id, position *(added)*, content, embedding `vector(384)`, metadata (jsonb)
+- `sample_questions`: id, domain_id, task_statement_id (nullable), stem, options (jsonb), correct_option, embedding `vector(384)`, created_at
+- `questions`: id, domain_id, task_statement_id, stem, options (jsonb), correct_option, explanation, cited_chunk_ids (int[]), validation (jsonb), model, created_at. Fixture questions have `model = 'fixture'` until generation exists
+- `exams`: id, user_id, mode, status, question_count, requested_question_count *(added)*, duration_minutes *(added)*, started_at, ends_at, submitted_at, score (number of correct answers), created_at
 - `exam_questions`: exam_id, question_id, position
 - `answers`: exam_id, question_id, selected_option, answered_at, is_correct
-- `generation_quota` (optional): user_id, date, count
+- `generation_quota` (optional, not implemented): user_id, date, count
 
-The embedding dimension `n` depends on the embedding model chosen.
+The embedding dimension (384) is fixed by the embedding model; changing the model needs a migration.
 
 ## 10. Tech stack
 
@@ -160,12 +165,12 @@ The embedding dimension `n` depends on the embedding model chosen.
 | Language / framework | Python, FastAPI |
 | Database | **PostgreSQL + pgvector** (single database for relational data and vectors). Local image: `pgvector/pgvector:pg17` |
 | ORM / migrations | SQLAlchemy + Alembic. The first migration runs `CREATE EXTENSION vector;` |
-| Vector index | HNSW (optional at POC scale) |
+| Vector index | HNSW (cosine) on `chunks` and `sample_questions` |
 | JWT | PyJWT |
 | LLM (generation + validation) | Anthropic API |
-| Embeddings | Local sentence-transformers model (no extra API key) |
+| Embeddings | Local `fastembed` (ONNX) running `BAAI/bge-small-en-v1.5`, 384 dimensions (no API key, no PyTorch) |
 | Background jobs | FastAPI `BackgroundTasks` for the POC (see open questions) |
-| Local environment | Docker Compose (api + postgres) |
+| Local environment | Docker Compose runs Postgres; the API runs on the host with `uv` (containerizing it is not done) |
 
 **Rationale for a single Postgres database:** Retrieval can filter by source or domain and rank by similarity in one SQL query, with transactions across all data and no second store to keep in sync. It also deploys directly to RDS or Aurora PostgreSQL, which support pgvector. A dedicated vector database adds no value at POC scale.
 
@@ -196,13 +201,13 @@ The embedding dimension `n` depends on the embedding model chosen.
 
 ## 13. Milestones
 
-1. **M1 — Foundation:** Docker Compose, Postgres + pgvector, Alembic, settings, health check.
-2. **M2 — Auth:** users, login, refresh, logout, the authorization dependencies, and an admin seed.
-3. **M3 — Ingestion:** sources, chunking, embeddings, allowlist, and seeding of domains and task statements.
-4. **M4 — Exams without AI:** the exam lifecycle, time rules, answers, results, and stats, using fixture questions.
-5. **M5 — Generation:** retrieval, few-shot selection, generation, validation, and the async job.
-6. **M6 — Adaptive weighting:** stats feed into target selection.
-7. **M7 (stretch) — Generation quality eval:** a script that measures validation pass rate and blind-answer agreement over a fixed set of task statements.
+1. **M1 — Foundation:** *[Done]* Docker Compose, Postgres + pgvector, Alembic, settings, health check.
+2. **M2 — Auth:** *[Done]* users, login, refresh, logout, the authorization dependencies, and an admin seed.
+3. **M3 — Ingestion:** *[Done]* sources, chunking, embeddings, allowlist, and seeding of domains and task statements.
+4. **M4 — Exams without AI:** *[Done]* the exam lifecycle, time rules, answers, results, and stats, using fixture questions.
+5. **M5 — Generation:** *[Not started]* retrieval, few-shot selection, generation, validation, and the async job.
+6. **M6 — Adaptive weighting:** *[Not started]* stats feed into target selection.
+7. **M7 (stretch) — Generation quality eval:** *[Not started]* a script that measures validation pass rate and blind-answer agreement over a fixed set of task statements.
 
 ## 14. Future (out of POC scope)
 
@@ -211,9 +216,9 @@ The embedding dimension `n` depends on the embedding model chosen.
 
 ## 15. Open questions
 
-- Background jobs: is `BackgroundTasks` enough, or should the POC use a lightweight queue (arq, RQ, Celery)?
-- Which embedding model, and therefore which vector dimension?
-- What chunking strategy should be used (size, overlap, splitting by heading)?
-- What is the minimum valid question count before an exam is marked `failed`?
+- ~~Background jobs~~ Decided: `BackgroundTasks` for ingestion. Revisit for generation (M5) if jobs must survive restarts.
+- ~~Which embedding model, and therefore which vector dimension?~~ Decided: `BAAI/bge-small-en-v1.5`, 384 dimensions, via fastembed.
+- ~~What chunking strategy should be used?~~ Decided: split at headings, about 1200 characters with 150 overlap, heading prefixed to each chunk.
+- What is the minimum valid question count before an exam is marked `failed`? Currently only an empty result fails; a shorter exam is served.
 - Is the daily generation quota in or out for the POC?
-- Should admins be allowed to create and take exams too?
+- Should admins be allowed to create and take exams too? Currently exam endpoints are student-only.

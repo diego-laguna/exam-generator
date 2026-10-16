@@ -8,7 +8,9 @@ Full requirements: `docs/PRD-aws-saa-study-assistant.md` (not auto-loaded). Read
 - PostgreSQL + pgvector (single DB for relational data and vectors), image `pgvector/pgvector:pg17`
 - SQLAlchemy 2 + Alembic (psycopg 3); migrations in `migrations/`
 - Auth: PyJWT + pwdlib (argon2), settings via pydantic-settings
-- Planned: Anthropic API (generation/validation), local sentence-transformers embeddings
+- Embeddings: local `fastembed` (ONNX) with `BAAI/bge-small-en-v1.5`, 384 dims (`app/embeddings.py`)
+- Ingestion: httpx2 fetch + BeautifulSoup + heading-aware chunking (`app/fetching.py`, `app/chunking.py`, `app/ingestion.py`)
+- Planned: Anthropic API (generation/validation)
 
 ## Commands
 - DB: `docker compose up -d --wait`
@@ -32,8 +34,8 @@ Full requirements: `docs/PRD-aws-saa-study-assistant.md` (not auto-loaded). Read
 - No secrets in the repo.
 
 ## Status
-PRD milestones done: M1 (foundation), M2 (auth, `POST /users`, admin bootstrap), M4 (exams with fixture questions).
-Still stubs (501, role checks in place): `/sources*` and `/samples` (M3). Next: M3, then M5 (generation).
+PRD milestones done: M1 (foundation), M2 (auth, `POST /users`, admin bootstrap), M3 (ingestion), M4 (exams with fixture questions).
+Next: M5 (generation: retrieval, LLM generate + blind validate, async `POST /exams`), then M6.
 Decisions beyond the PRD text:
 - Routes live under `/api/v1`; `/health` stays unversioned.
 - Access token 15 min; refresh tokens are opaque, hashed, single-use (rotated), 7 days, deleted (not flagged) on use/logout.
@@ -47,3 +49,9 @@ Decisions beyond the PRD text:
 - `/me/stats` counts practice answers and answers from finished exams only.
 - Time is injectable via the `get_clock` dependency; tests override it.
 - Error responses for exam rules use `detail: {code, message}` (e.g. `EXAM_WINDOW_CLOSED`, `RESULTS_LOCKED`).
+- Embeddings use `fastembed` instead of sentence-transformers (same open models, no PyTorch/CUDA install). Changing the model or its dimension needs a migration (`EMBEDDING_DIM`).
+- Ingestion runs as FastAPI `BackgroundTasks` (no queue); a source goes `pending -> ingesting -> ready|failed`, and a restart mid-ingestion leaves it `ingesting`.
+- URLs are validated against the allowlist (exact https host match, no userinfo/port) at the endpoint AND on every redirect hop; fetches have size/time/redirect caps.
+- Chunks: ~1200 chars, 150 overlap, split at headings, heading prefixed to content. Only `error` text is hidden from students; the source list is visible to any user.
+- Retrieval helper `similar_chunks` (cosine, optional `source_ids`) is ready for M5. HNSW indexes exist on `chunks` and `sample_questions`.
+- Tests never download the model or hit the network: they override `get_embedder`/`get_fetcher` with `tests/helpers_ingestion.py`.
