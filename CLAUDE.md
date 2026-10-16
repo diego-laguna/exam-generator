@@ -13,6 +13,7 @@ Full requirements: `docs/PRD-aws-saa-study-assistant.md` (not auto-loaded). Read
 ## Commands
 - DB: `docker compose up -d --wait`
 - Migrate: `uv run alembic upgrade head` (new: `uv run alembic revision --autogenerate -m "..."`)
+- Seed exam reference data + fixture questions: `uv run python -m scripts.seed_reference` (required after migrating)
 - Seed sample users: `uv run python -m scripts.seed` (alice=admin, bob/carol=students)
 - Bootstrap an admin: `uv run python -m scripts.create_admin <username>` (prompts, or set `ADMIN_PASSWORD`)
 - Run: `uv run fastapi dev app/main.py`
@@ -29,11 +30,18 @@ Full requirements: `docs/PRD-aws-saa-study-assistant.md` (not auto-loaded). Read
 - No secrets in the repo.
 
 ## Status
-PRD milestones: M1 (foundation) and M2 (auth, `POST /users`, admin bootstrap) are done. Next: M4 (exams with fixture questions), then M3.
-Deviations from the PRD, decided:
+PRD milestones done: M1 (foundation), M2 (auth, `POST /users`, admin bootstrap), M4 (exams with fixture questions).
+Still stubs (501, role checks in place): `/sources*` and `/samples` (M3). Next: M3, then M5 (generation).
+Decisions beyond the PRD text:
 - Routes live under `/api/v1`; `/health` stays unversioned.
-- Access token 15 min; refresh tokens are opaque, hashed, single-use (rotated), 7 days.
-- Logout deletes the given refresh token and denylists the access token JTI (`revoked_tokens`, purged after expiry).
+- Access token 15 min; refresh tokens are opaque, hashed, single-use (rotated), 7 days, deleted (not flagged) on use/logout.
+- Logout also denylists the access token JTI (`revoked_tokens`, purged after expiry).
 - Password change must call `revoke_all_refresh_tokens` (no password-change endpoint yet).
-- Refresh tokens are deleted rather than flagged `revoked_at`.
-- Postgres is pg17 (PRD updated).
+- Exam mode time limit = 2 min per question (65 questions -> 130 min), set at `/start` on the server clock.
+- Requesting more questions than the bank holds serves what exists (`requested_question_count` vs `question_count`); 0 available -> `failed`.
+- `GET /exams/{id}` returns questions only after start and never `correct_option`/`explanation`; practice answers return feedback in the `PUT` response.
+- Exam endpoints are student-only; admins get 403 (PRD open question).
+- Domain ids 1-4 follow the exam guide; `POST /exams` takes `domains: [ids]`.
+- `/me/stats` counts practice answers and answers from finished exams only.
+- Time is injectable via the `get_clock` dependency; tests override it.
+- Error responses for exam rules use `detail: {code, message}` (e.g. `EXAM_WINDOW_CLOSED`, `RESULTS_LOCKED`).

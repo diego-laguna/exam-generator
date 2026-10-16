@@ -1,6 +1,6 @@
 """Role-based access matrix for every endpoint except /auth/* and /health.
 
-Allowed roles reach the 501 stub; other roles get 403; anonymous callers get 401.
+Allowed roles get past authorization; other roles get 403; anonymous callers get 401.
 Authorization must run before anything else, so these hold regardless of the stub.
 """
 
@@ -50,8 +50,9 @@ def test_anonymous_gets_401(method, path, allowed):
 def test_role_access(method, path, allowed, role):
     r = client.request(method, P + path, headers=headers_for(role))
     if role in allowed:
-        # Passed authorization. 501 for stubs; POST /users is real, so it answers 422 (no body).
-        assert r.status_code in (501, 422), r.text
+        # Passed authorization: whatever comes next (422 missing body, 404 no such exam, 501 stub,
+        # 200 ...) is the endpoint's own business, covered by its own tests.
+        assert r.status_code not in (401, 403), r.text
     else:
         assert r.status_code == 403, r.text
 

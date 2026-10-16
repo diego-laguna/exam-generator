@@ -21,10 +21,12 @@ def _database():
     from app.db import Base, engine
     from app import models  # noqa: F401
     from scripts.seed import seed
+    from scripts.seed_reference import seed_reference
 
     with engine.begin() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.create_all(engine)
     seed()
+    seed_reference()
     yield
     engine.dispose()

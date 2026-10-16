@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
 
+    exam_minutes_per_question: int = 2  # 65 questions -> 130 minutes
+    exam_default_questions: int = 65
+    practice_default_questions: int = 10
+
     database_url: str = "postgresql+psycopg://learn:learn@localhost:5432/learn_assistant"
 
 
