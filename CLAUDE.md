@@ -1,7 +1,7 @@
 # learn-assistant
 
 FastAPI REST API: teachers upload PDFs, the app generates validated multiple-choice/true-false questions that cite file, page and line, teachers save question sets and download printable PDFs. A legacy student module (timed AWS SAA-C03 exams from a fixture bank) is kept.
-Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-generator.md` (current), `docs/PRD-aws-saa-study-assistant.md` (legacy student module).
+Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-generator.md` (current), `docs/PRD-aws-saa-study-assistant.md` (legacy student module). AWS deployment: `docs/DEPLOY.md`, Terraform in `infra/terraform/`.
 
 ## Stack
 - Python 3.14, FastAPI, managed with `uv`
@@ -12,7 +12,7 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 - Ingestion: httpx2 fetch + BeautifulSoup + heading-aware chunking (`app/fetching.py`, `app/chunking.py`, `app/ingestion.py`)
 - Teacher PDFs: pdfminer.six (numbered lines, `app/pdf_text.py`), storage in S3 or a local dir (`app/storage.py`), ReportLab export (`app/pdf_export.py`)
 - LLM: Anthropic API behind the `Llm` protocol (`app/llm.py`, forced tool call -> Pydantic); generation pipeline in `app/question_gen.py`
-- CI: `.github/workflows/ci.yml` (pyright + pytest). AWS deployment (Dockerfile, Terraform) lives on the `aws-deployment` branch
+- Deploy: `Dockerfile`, Terraform (ECS Fargate, RDS pg17, S3, Secrets Manager, ALB), CI in `.github/workflows/ci.yml`
 
 ## Commands
 - DB: `docker compose up -d --wait`
@@ -24,6 +24,7 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 - Type check: `uv run pyright` (standard mode; must stay at 0 errors)
 - Test: `uv run pytest` (needs the DB up; uses its own `learn_assistant_test` database)
 - Config: copy `.env.example` to `.env`. Set `ANTHROPIC_API_KEY` yourself in `.env` (never paste it into chat); without it `POST /generations` returns 503.
+- Docker image: `docker build -t learn-assistant:dev .`; Terraform check: `docker run --rm -v "$PWD/infra/terraform:/tf" -w /tf hashicorp/terraform:1.9 validate`
 
 ## Rules that always apply
 - Code is fully type-annotated and must pass pyright; runtime validation is Pydantic (requests, settings, LLM JSON).
@@ -38,7 +39,7 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 - No secrets in the repo.
 
 ## Status
-Teacher exam generator implemented (documents, generations, bank questions, question sets, PDF export). Legacy student module (M1-M4 of the SAA PRD) kept and tested.
+Teacher exam generator implemented (documents, generations, bank questions, question sets, PDF export) plus AWS deployment files. Legacy student module (M1-M4 of the SAA PRD) kept and tested.
 Not done: durable job queue (SQS), question editing, assigning sets to students, live quality eval with a real key.
 Teacher decisions: roles `teacher`/`admin`/`student`; question types `mcq` and `true_false` (options A=True, B=False); citations `{document, chunk_id, page, line_start, line_end, quote}` as snapshots (survive document deletion); a "line" is a non-empty extracted text line numbered per page; chunks are 40 lines with 5 overlap; one running generation per teacher; jobs/documents stuck longer than `JOB_STALE_MINUTES` are reported failed; DB URL is built from `DB_*` parts when `DB_HOST` is set (AWS); a blank `ANTHROPIC_API_KEY` counts as unset.
 Decisions beyond the legacy PRD text:

@@ -11,8 +11,9 @@ The POC demonstrates:
 1. **Grounded generation with verification:** citations are checked against the extracted page lines, and questions pass a blind-answer check.
 2. **JWT authentication** with short-lived access tokens and rotating refresh tokens.
 3. **Layered authorization:** roles, per-teacher ownership and time rules as composable FastAPI dependencies.
+4. **A deployable AWS setup:** container image, Terraform for ECS Fargate, RDS PostgreSQL with pgvector, S3 and Secrets Manager.
 
-Requirements: [`docs/PRD-exam-generator.md`](docs/PRD-exam-generator.md) (current) and [`docs/PRD-aws-saa-study-assistant.md`](docs/PRD-aws-saa-study-assistant.md) (student module).
+Requirements: [`docs/PRD-exam-generator.md`](docs/PRD-exam-generator.md) (current) and [`docs/PRD-aws-saa-study-assistant.md`](docs/PRD-aws-saa-study-assistant.md) (student module). Deployment: [`docs/DEPLOY.md`](docs/DEPLOY.md).
 
 ## Status
 
@@ -22,7 +23,7 @@ Requirements: [`docs/PRD-exam-generator.md`](docs/PRD-exam-generator.md) (curren
 | Teacher flow: PDF upload, extraction with page/line numbers, embeddings | Done |
 | Question generation (multiple choice, true/false) with verified citations and blind validation | Done; tested with a fake model, not yet run against the real API |
 | Question sets (save, reuse) and printable student / teacher PDFs | Done |
-| AWS deployment (container image, Terraform) | On a separate branch, not merged |
+| AWS deployment (Dockerfile, Terraform, CI) | Provided; Terraform validated, not applied |
 | Student module (timed SAA-C03 exams, stats) | Done, fixture questions only |
 | Durable job queue (SQS), question editing, assigning sets to students | Not started |
 
@@ -40,6 +41,7 @@ Requirements: [`docs/PRD-exam-generator.md`](docs/PRD-exam-generator.md) (curren
 - **Anthropic API** for generation and validation (the key is optional for everything else)
 - **boto3 / S3** for PDF storage on AWS (a local folder in development)
 - **httpx2** and **BeautifulSoup** for the student module's documentation ingestion
+- **Docker** and **Terraform** for AWS
 
 ## Getting started
 
@@ -235,8 +237,10 @@ app/
 migrations/          Alembic migrations
 scripts/             Seed and admin-bootstrap scripts, fixture questions
 tests/               pytest suite
-docs/                Product requirements
-.github/workflows/   CI: pyright and pytest
+docs/                Product requirements and the AWS deployment guide
+infra/terraform/     AWS infrastructure (ECS Fargate, RDS, S3, Secrets Manager, ALB)
+Dockerfile           Production image
+.github/workflows/   CI: pyright, pytest, terraform validate
 compose.yaml         PostgreSQL + pgvector for local development
 ```
 
@@ -263,3 +267,7 @@ Settings come from environment variables or a `.env` file (see `.env.example`).
 | `INGESTION_ALLOWED_HOSTS` | AWS docs hosts | Hosts that sources may come from (JSON list) |
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Must output 384 dimensions |
 | `CHUNK_MAX_CHARS` / `CHUNK_OVERLAP_CHARS` | `1200` / `150` | Chunking |
+
+## Deploying to AWS
+
+See [`docs/DEPLOY.md`](docs/DEPLOY.md): build the image, `terraform apply` in `infra/terraform/`, store the Anthropic key in Secrets Manager, run the migration task, start the service.

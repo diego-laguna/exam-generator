@@ -1,0 +1,4 @@
+region = "us-east-1"
+# certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/..."
+# protect_data    = false   # allow `terraform destroy` for a throwaway POC
+# desired_count   = 1       # after the image is pushed and the Anthropic key is set

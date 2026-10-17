@@ -1,6 +1,6 @@
 # PRD — Exam Generator for Teachers (POC)
 
-**Status:** Draft v0.3. Teacher flow (G1–G5) implemented; AWS deployment is on the `aws-deployment` branch (not merged). Replaces the AWS-SAA framing of [`PRD-aws-saa-study-assistant.md`](PRD-aws-saa-study-assistant.md), which remains the spec for the legacy student module (section 9).
+**Status:** Draft v0.3. Teacher flow (G1–G5) implemented; AWS deployment files provided. Replaces the AWS-SAA framing of [`PRD-aws-saa-study-assistant.md`](PRD-aws-saa-study-assistant.md), which remains the spec for the legacy student module (section 9).
 **Type:** Proof of concept
 **Owner:** Diego Laguna
 
@@ -18,7 +18,7 @@ A REST API for teachers. A teacher uploads PDFs (lesson notes, textbook chapters
 - G3: Let teachers select questions into named sets that are saved and reused.
 - G4: Export a set as a printable student PDF (no answers) and a teacher PDF (answers, explanations, sources).
 - G5: Teachers only ever see their own documents, questions and sets.
-- G6: Be deployable on AWS (container, RDS PostgreSQL + pgvector, S3, Secrets Manager, ECS Fargate). Delivered separately on the `aws-deployment` branch; the app already supports it (S3 storage, `DB_*` settings).
+- G6: Be deployable on AWS (container, RDS PostgreSQL + pgvector, S3, Secrets Manager, ECS Fargate).
 
 ### Non-goals (POC)
 - Frontend. The API is the product.
@@ -109,7 +109,7 @@ The SAA-C03 student exam flow (M1–M4 of the legacy PRD: timed exams, practice 
 
 ## 10. Tech stack
 
-Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, fastembed (`BAAI/bge-small-en-v1.5`), pdfminer.six (PDF text), ReportLab (PDF export), Anthropic API (generation + validation), boto3 (S3). Local: Docker Compose runs Postgres. AWS: see the `aws-deployment` branch.
+Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, fastembed (`BAAI/bge-small-en-v1.5`), pdfminer.six (PDF text), ReportLab (PDF export), Anthropic API (generation + validation), boto3 (S3). Local: Docker Compose runs Postgres. AWS: see [`DEPLOY.md`](DEPLOY.md).
 
 ## 11. Open questions and next steps
 
