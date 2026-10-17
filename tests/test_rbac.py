@@ -12,8 +12,8 @@ from app.main import app
 client = TestClient(app)
 P = "/api/v1"
 
-ADMIN, STUDENT = "admin", "student"
-ANY = {ADMIN, STUDENT}
+ADMIN, STUDENT, TEACHER = "admin", "student", "teacher"
+ANY = {ADMIN, STUDENT, TEACHER}
 
 # (method, path, roles allowed)
 ENDPOINTS = [
@@ -29,9 +29,29 @@ ENDPOINTS = [
     ("POST", "/exams/1/submit", {STUDENT}),
     ("GET", "/exams/1/results", {STUDENT}),
     ("GET", "/me/stats", ANY),
+    ("POST", "/documents", {TEACHER}),
+    ("GET", "/documents", {TEACHER}),
+    ("GET", "/documents/1", {TEACHER}),
+    ("DELETE", "/documents/1", {TEACHER}),
+    ("POST", "/generations", {TEACHER}),
+    ("GET", "/generations", {TEACHER}),
+    ("GET", "/generations/1", {TEACHER}),
+    ("GET", "/questions", {TEACHER}),
+    ("GET", "/questions/1", {TEACHER}),
+    ("DELETE", "/questions/1", {TEACHER}),
+    ("POST", "/question-sets", {TEACHER}),
+    ("GET", "/question-sets", {TEACHER}),
+    ("GET", "/question-sets/1", {TEACHER}),
+    ("PUT", "/question-sets/1", {TEACHER}),
+    ("DELETE", "/question-sets/1", {TEACHER}),
+    ("GET", "/question-sets/1/pdf", {TEACHER}),
 ]
 
-USERS = {ADMIN: ("alice", "wonderland"), STUDENT: ("bob", "builder")}
+USERS = {
+    ADMIN: ("alice", "wonderland"),
+    STUDENT: ("bob", "builder"),
+    TEACHER: ("dave", "teacher-pass"),
+}
 
 
 def headers_for(role):
@@ -46,7 +66,7 @@ def test_anonymous_gets_401(method, path, allowed):
 
 
 @pytest.mark.parametrize("method,path,allowed", ENDPOINTS)
-@pytest.mark.parametrize("role", [ADMIN, STUDENT])
+@pytest.mark.parametrize("role", [ADMIN, STUDENT, TEACHER])
 def test_role_access(method, path, allowed, role):
     r = client.request(method, P + path, headers=headers_for(role))
     if role in allowed:

@@ -56,6 +56,7 @@ def require_role(*roles: Role):
 # Route-level access shortcuts. Used as `dependencies=[...]` so the check runs before the handler.
 AdminOnly = Depends(require_role(Role.admin))
 StudentOnly = Depends(require_role(Role.student))
+TeacherOnly = Depends(require_role(Role.teacher))
 AnyUser = Depends(get_current_user)
 
 

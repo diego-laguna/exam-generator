@@ -10,6 +10,7 @@ SAMPLE_USERS = [
     ("alice", "wonderland", Role.admin),
     ("bob", "builder", Role.student),
     ("carol", "christmas", Role.student),
+    ("dave", "teacher-pass", Role.teacher),
 ]
 
 

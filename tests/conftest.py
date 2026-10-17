@@ -30,3 +30,11 @@ def _database():
     seed_reference()
     yield
     engine.dispose()
+
+
+@pytest.fixture(autouse=True)
+def _no_real_llm(monkeypatch):
+    """A developer's real ANTHROPIC_API_KEY in .env must never be used by tests."""
+    from app import llm
+
+    monkeypatch.setattr(llm, "_anthropic_llm", lambda: None)

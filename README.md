@@ -1,30 +1,30 @@
 # learn-assistant
 
-A REST API that helps people study for the **AWS Certified Solutions Architect – Associate (SAA-C03)** exam.
+A REST API that turns a teacher's PDFs into exam questions.
 
-The end goal is to generate exam-style practice questions with Retrieval-Augmented Generation (RAG) over AWS documentation, validate each question automatically, and serve them in timed exams or untimed practice sessions. This is a proof of concept: the API is the product, there is no frontend.
+A teacher uploads PDFs. The API generates multiple-choice and true/false questions from them, each with the correct answer, an explanation and **citations to the source file, page and line**. Every question is checked automatically before it is stored: its citations must match the cited lines, and a second, blind model call must pick the same answer. The teacher selects questions into a **question set**, saves it for later reuse, and downloads a **printable PDF** for students (plus an answer key). This is a proof of concept: the API is the product, there is no frontend.
 
-The POC is meant to demonstrate:
+It also keeps an earlier module: timed AWS SAA-C03 practice exams for students, served from a small fixture question bank.
 
-1. **RAG with grounding and validation:** questions cite their source chunks and must pass a blind-answer check.
+The POC demonstrates:
+
+1. **Grounded generation with verification:** citations are checked against the extracted page lines, and questions pass a blind-answer check.
 2. **JWT authentication** with short-lived access tokens and rotating refresh tokens.
-3. **Layered authorization:** roles, resource ownership and time rules as composable FastAPI dependencies.
-4. **Server-enforced time windows** for exams, with results that unlock by mode and time.
+3. **Layered authorization:** roles, per-teacher ownership and time rules as composable FastAPI dependencies.
 
-The full requirements are in [`docs/PRD-aws-saa-study-assistant.md`](docs/PRD-aws-saa-study-assistant.md).
+Requirements: [`docs/PRD-exam-generator.md`](docs/PRD-exam-generator.md) (current) and [`docs/PRD-aws-saa-study-assistant.md`](docs/PRD-aws-saa-study-assistant.md) (student module).
 
 ## Status
 
-| Milestone | State |
+| Area | State |
 |---|---|
-| M1 Foundation (Docker Compose, Postgres + pgvector, Alembic, settings, health check) | Done |
-| M2 Auth (users, login, refresh, logout, role and ownership dependencies, admin bootstrap) | Done |
-| M3 Ingestion (sources, chunking, embeddings, samples) | Done |
-| M4 Exams (lifecycle, time rules, answers, results, stats) | Done, using a small bank of hand-written fixture questions |
-| M5 Question generation (retrieval, LLM generation, blind validation) | Not started |
-| M6 Adaptive weighting from stats | Not started |
-
-Until M5 lands, exams are built from 20 fixture questions rather than generated ones.
+| Foundation, auth, roles, ownership dependencies | Done |
+| Teacher flow: PDF upload, extraction with page/line numbers, embeddings | Done |
+| Question generation (multiple choice, true/false) with verified citations and blind validation | Done; tested with a fake model, not yet run against the real API |
+| Question sets (save, reuse) and printable student / teacher PDFs | Done |
+| AWS deployment (container image, Terraform) | On a separate branch, not merged |
+| Student module (timed SAA-C03 exams, stats) | Done, fixture questions only |
+| Durable job queue (SQS), question editing, assigning sets to students | Not started |
 
 ## Technologies
 
@@ -35,8 +35,11 @@ Until M5 lands, exams are built from 20 fixture questions rather than generated 
 - **PyJWT** for access tokens and **pwdlib (argon2)** for password hashing
 - **pydantic-settings** for configuration from environment variables
 - **pytest** for tests and **pyright** for static type checking
-- **fastembed** (ONNX, `BAAI/bge-small-en-v1.5`, 384 dimensions) for local embeddings, **httpx2** and **BeautifulSoup** for fetching and parsing documentation pages
-- Planned: the Anthropic API for generation and validation
+- **fastembed** (ONNX, `BAAI/bge-small-en-v1.5`, 384 dimensions) for local embeddings
+- **pdfminer.six** to read PDFs line by line, **ReportLab** to write the printable PDFs
+- **Anthropic API** for generation and validation (the key is optional for everything else)
+- **boto3 / S3** for PDF storage on AWS (a local folder in development)
+- **httpx2** and **BeautifulSoup** for the student module's documentation ingestion
 
 ## Getting started
 
@@ -55,6 +58,7 @@ uv sync
 cp .env.example .env
 #    then set JWT_SECRET_KEY, e.g.:
 #    python -c "import secrets; print(secrets.token_urlsafe(48))"
+#    and, to generate questions, ANTHROPIC_API_KEY (edit .env yourself; use a key with a spend limit)
 
 # 3. Start PostgreSQL with pgvector
 docker compose up -d --wait
@@ -76,6 +80,7 @@ The sample users are:
 | `alice` | `wonderland` | admin |
 | `bob` | `builder` | student |
 | `carol` | `christmas` | student |
+| `dave` | `teacher-pass` | teacher |
 
 These are for local development only. To create a real admin instead, run `uv run python -m scripts.create_admin <username>` (it prompts for the password, or reads `ADMIN_PASSWORD`).
 
@@ -95,7 +100,39 @@ All other endpoints live under `/api/v1`.
 
 ## Try it
 
-A short practice session as a student, using `curl` and `jq`:
+### As a teacher
+
+The teacher flow needs `ANTHROPIC_API_KEY` in `.env` for the generation step. Uploading, listing and exporting work without it.
+
+```bash
+API=http://127.0.0.1:8000/api/v1
+TOKEN=$(curl -s -X POST $API/auth/login -d 'username=dave&password=teacher-pass' | jq -r .access_token)
+AUTH="Authorization: Bearer $TOKEN"
+
+# Upload a PDF (it needs a text layer; scanned PDFs are rejected) and wait for status "ready"
+DOC=$(curl -s -X POST $API/documents -H "$AUTH" -F file=@lesson.pdf | jq -r .id)
+curl -s $API/documents/$DOC -H "$AUTH" | jq '{status, page_count, chunk_count, error}'
+
+# Generate 5 multiple-choice and 3 true/false questions (optionally add "focus": "photosynthesis")
+JOB=$(curl -s -X POST $API/generations -H "$AUTH" -H 'Content-Type: application/json' \
+  -d "{\"document_ids\": [$DOC], \"mcq_count\": 5, \"true_false_count\": 3}" | jq -r .id)
+curl -s $API/generations/$JOB -H "$AUTH" | jq '{status, requested_count, produced_count, question_ids}'
+
+# Review the questions: answer, explanation and where in the PDF it comes from
+curl -s $API/questions -H "$AUTH" | jq '.[] | {id, type, stem, correct_option, citations}'
+
+# Save a selection as a reusable set, then download the PDFs
+SET=$(curl -s -X POST $API/question-sets -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"title": "Unit 1 quiz", "question_ids": [1, 2, 3]}' | jq -r .id)
+curl -s "$API/question-sets/$SET/pdf" -H "$AUTH" -o quiz-students.pdf                      # no answers
+curl -s "$API/question-sets/$SET/pdf?version=teacher" -H "$AUTH" -o quiz-answer-key.pdf    # answers + sources
+```
+
+A citation looks like `{"document": "lesson.pdf", "page": 3, "line_start": 12, "line_end": 14, "quote": "..."}`. Lines are the non-empty text lines of the page, numbered from 1 in reading order. Questions that fail the checks are discarded, so a job can produce fewer questions than requested (`produced_count`).
+
+### As a student (legacy module)
+
+A short practice session using `curl` and `jq`:
 
 ```bash
 API=http://127.0.0.1:8000/api/v1
@@ -129,12 +166,13 @@ Using `"mode": "exam"` instead gives a timed exam: 2 minutes per question (130 m
 |---|---|
 | Anyone | `GET /health`, `POST /auth/login`, `POST /auth/refresh` |
 | Any signed-in user | `POST /auth/logout`, `GET /sources`, `GET /me/stats` |
+| `teacher` | `/documents`, `/generations`, `/questions`, `/question-sets` (you can only see your own) |
 | `student` | Everything under `/exams` (you can only see your own exams) |
-| `admin` | `POST /users`, `POST`/`DELETE /sources`, `POST /samples` |
+| `admin` | `POST /users` (including teachers), `POST`/`DELETE /sources`, `POST /samples` |
 
 Access tokens last 15 minutes. Refresh them with `POST /auth/refresh`, which also rotates the refresh token. `POST /auth/logout` revokes the current access token immediately.
 
-### Add documentation to the knowledge base
+### Add documentation to the student module's knowledge base
 
 Admins ingest documentation pages. Only `https://docs.aws.amazon.com` and `https://aws.amazon.com` URLs are accepted.
 
@@ -158,7 +196,9 @@ uv run pyright       # static type check (must report 0 errors)
 
 The tests never download the embedding model or touch the network; they use a deterministic fake embedder and fetcher.
 
-The suite covers authentication and token handling, role-based access for every endpoint, exam time rules (using an injectable clock), results locking statistics, URL allowlisting (including SSRF bypass attempts), chunking, and pgvector similarity search.
+The suite also stands in for the model, storage and embedder (`tests/helpers_teacher.py`), so it never calls the Anthropic API or S3, and an autouse fixture disables the real LLM even if your `.env` has a key.
+
+The suite covers authentication and token handling, PDF line extraction, citation verification, generation (retries, rejections, failures), ownership of every teacher resource, question sets and PDF export, role-based access for every endpoint, exam time rules (using an injectable clock), results locking statistics, URL allowlisting (including SSRF bypass attempts), chunking, and pgvector similarity search.
 
 ## Project layout
 
@@ -175,7 +215,17 @@ app/
   exam_deps.py       Ownership, active-window and results-unlocked dependencies
   exam_service.py    Exam creation, question selection, scoring
   stats.py           /me/stats
-  sources.py         /sources and /samples
+  documents.py       /documents (teacher uploads)
+  document_ingestion.py  Background job: PDF -> numbered lines -> chunks -> embeddings
+  pdf_text.py        PDF line extraction, chunking, citation quote check
+  storage.py         PDF storage: local folder or S3
+  llm.py             Anthropic client behind a small protocol
+  question_gen.py    Generation pipeline: draft, verify citations, blind validation
+  generations.py     /generations (jobs)
+  questions.py       /questions (the teacher's bank)
+  question_sets.py   /question-sets and PDF download
+  pdf_export.py      Printable student sheet and teacher answer key
+  sources.py         /sources and /samples (student module)
   fetching.py        Allowlisted, size-capped page fetching (SSRF guard)
   chunking.py        HTML -> heading-aware chunks
   embeddings.py      Local embedding model
@@ -185,7 +235,8 @@ app/
 migrations/          Alembic migrations
 scripts/             Seed and admin-bootstrap scripts, fixture questions
 tests/               pytest suite
-docs/                Product requirements document
+docs/                Product requirements
+.github/workflows/   CI: pyright and pytest
 compose.yaml         PostgreSQL + pgvector for local development
 ```
 
@@ -198,7 +249,14 @@ Settings come from environment variables or a `.env` file (see `.env.example`).
 | Variable | Default | Purpose |
 |---|---|---|
 | `JWT_SECRET_KEY` | required | Signs access tokens. Keep it secret. |
+| `ANTHROPIC_API_KEY` | unset | Enables generation. Blank counts as unset. Never commit it. |
+| `LLM_GENERATION_MODEL` / `LLM_VALIDATION_MODEL` | `claude-sonnet-5-5` | Models for drafting and for blind validation |
 | `DATABASE_URL` | local compose database | SQLAlchemy URL for PostgreSQL |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | unset | Used instead of `DATABASE_URL` when `DB_HOST` is set (AWS) |
+| `STORAGE_BACKEND` | `local` | `local` (folder `LOCAL_STORAGE_DIR`, default `.data/documents`) or `s3` (needs `S3_BUCKET`) |
+| `UPLOAD_MAX_BYTES` / `PDF_MAX_PAGES` | 25 MB / 400 | Upload limits |
+| `GENERATION_MAX_QUESTIONS` / `GENERATION_ATTEMPTS_PER_SLOT` | 50 / 3 | Per request and per question |
+| `JOB_STALE_MINUTES` | `30` | A job or document still running after this long is reported as failed |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
 | `EXAM_MINUTES_PER_QUESTION` | `2` | Exam-mode time limit per question |

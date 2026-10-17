@@ -1,4 +1,6 @@
-# PRD — AWS SAA Study Assistant (POC)
+# PRD — AWS SAA Study Assistant (POC) — legacy student module
+
+> **Scope note:** the product is now an exam generator for teachers; see [`PRD-exam-generator.md`](PRD-exam-generator.md). This document remains the spec for the student-facing SAA module (exams, practice, stats, URL ingestion), which is kept. Its M5 (LLM generation over AWS docs) is superseded by the teacher pipeline.
 
 **Status:** Draft v0.2. M1–M4 implemented (see section 13). Where the implementation differs from the original text, the section says so.
 **Type:** Proof of concept

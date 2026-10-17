@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -24,6 +25,7 @@ from app.embeddings import EMBEDDING_DIM
 class Role(enum.StrEnum):
     admin = "admin"
     student = "student"
+    teacher = "teacher"
 
 
 class ExamMode(enum.StrEnum):
@@ -44,6 +46,25 @@ class SourceStatus(enum.StrEnum):
     ingesting = "ingesting"
     ready = "ready"
     failed = "failed"
+
+
+class DocumentStatus(enum.StrEnum):
+    pending = "pending"
+    processing = "processing"
+    ready = "ready"
+    failed = "failed"
+
+
+class JobStatus(enum.StrEnum):
+    queued = "queued"
+    running = "running"
+    done = "done"
+    failed = "failed"
+
+
+class QuestionType(enum.StrEnum):
+    mcq = "mcq"  # options A-D
+    true_false = "true_false"  # options A=True, B=False
 
 
 def _enum(cls: type[enum.Enum]) -> Enum:
@@ -221,3 +242,116 @@ class SampleQuestion(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class Document(Base):
+    """A teacher's uploaded PDF. The file lives in object storage under `storage_key`."""
+
+    __tablename__ = "documents"
+    __table_args__ = (UniqueConstraint("owner_id", "sha256"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    sha256: Mapped[str] = mapped_column(String(64))
+    size_bytes: Mapped[int]
+    storage_key: Mapped[str] = mapped_column(String(512))
+    page_count: Mapped[int | None]
+    status: Mapped[DocumentStatus] = mapped_column(_enum(DocumentStatus))
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class DocumentChunk(Base):
+    """A run of consecutive PDF lines. `lines` is [[page, line_no, text], ...] (1-based)."""
+
+    __tablename__ = "document_chunks"
+    __table_args__ = (_hnsw_index("document_chunks"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    document_id: Mapped[int] = mapped_column(
+        ForeignKey("documents.id", ondelete="CASCADE"), index=True
+    )
+    position: Mapped[int]
+    lines: Mapped[list[list]] = mapped_column(JSONB)
+    content: Mapped[str] = mapped_column(Text)  # the lines joined, what gets embedded
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM))
+
+
+class GenerationJob(Base):
+    __tablename__ = "generation_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    document_ids: Mapped[list[int]] = mapped_column(ARRAY(Integer))
+    mcq_count: Mapped[int]
+    true_false_count: Mapped[int]
+    focus: Mapped[str | None] = mapped_column(String(500))
+    status: Mapped[JobStatus] = mapped_column(_enum(JobStatus))
+    produced_count: Mapped[int] = mapped_column(server_default="0")
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BankQuestion(Base):
+    """A generated, validated question owned by a teacher. Citations are snapshots (file, page,
+    lines, quote), so they stay valid if the source document is later deleted."""
+
+    __tablename__ = "bank_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    document_id: Mapped[int | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="SET NULL"), index=True
+    )
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("generation_jobs.id", ondelete="SET NULL")
+    )
+    type: Mapped[QuestionType] = mapped_column(_enum(QuestionType))
+    stem: Mapped[str] = mapped_column(Text)
+    options: Mapped[dict[str, str]] = mapped_column(JSONB)
+    correct_option: Mapped[str] = mapped_column(String(1))
+    explanation: Mapped[str] = mapped_column(Text)
+    # [{"document": "file.pdf", "chunk_id": 1, "page": 3, "line_start": 4, "line_end": 6, "quote": "..."}]
+    citations: Mapped[list[dict]] = mapped_column(JSONB)
+    validation: Mapped[dict | None] = mapped_column(JSONB)
+    model: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class QuestionSet(Base):
+    __tablename__ = "question_sets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class QuestionSetItem(Base):
+    __tablename__ = "question_set_items"
+
+    set_id: Mapped[int] = mapped_column(
+        ForeignKey("question_sets.id", ondelete="CASCADE"), primary_key=True
+    )
+    question_id: Mapped[int] = mapped_column(
+        ForeignKey("bank_questions.id", ondelete="CASCADE"), primary_key=True
+    )
+    position: Mapped[int]

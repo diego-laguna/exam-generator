@@ -22,7 +22,8 @@ from app import models  # noqa: F401  (registers tables)
 from app.config import get_settings
 from app.db import Base
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# "%" must be doubled: the value goes through configparser interpolation (URL-escaped passwords).
+config.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
