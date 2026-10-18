@@ -1030,7 +1030,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/app__questions__QuestionOut"
+                    "$ref": "#/components/schemas/BankQuestionOut"
                   },
                   "title": "Response List Questions Api V1 Questions Get"
                 }
@@ -1079,7 +1079,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/app__questions__QuestionOut"
+                  "$ref": "#/components/schemas/BankQuestionOut"
                 }
               }
             }
@@ -1502,6 +1502,73 @@
         ],
         "title": "AnswerOut"
       },
+      "BankQuestionOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "type": {
+            "$ref": "#/components/schemas/QuestionType"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "stem": {
+            "type": "string",
+            "title": "Stem"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Options"
+          },
+          "correct_option": {
+            "type": "string",
+            "title": "Correct Option"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationOut"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "document_id",
+          "stem",
+          "options",
+          "correct_option",
+          "explanation",
+          "citations",
+          "created_at"
+        ],
+        "title": "BankQuestionOut",
+        "description": "The teacher's view of a question: answer, explanation and citations included."
+      },
       "Body_login_api_v1_auth_login_post": {
         "properties": {
           "grant_type": {
@@ -1574,6 +1641,50 @@
           "file"
         ],
         "title": "Body_upload_document_api_v1_documents_post"
+      },
+      "CitationOut": {
+        "properties": {
+          "document": {
+            "type": "string",
+            "title": "Document"
+          },
+          "chunk_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Id"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "line_start": {
+            "type": "integer",
+            "title": "Line Start"
+          },
+          "line_end": {
+            "type": "integer",
+            "title": "Line End"
+          },
+          "quote": {
+            "type": "string",
+            "title": "Quote"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document",
+          "page",
+          "line_start",
+          "line_end",
+          "quote"
+        ],
+        "title": "CitationOut"
       },
       "DocumentOut": {
         "properties": {
@@ -1825,7 +1936,7 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/app__exams__QuestionOut"
+                  "$ref": "#/components/schemas/ExamQuestionOut"
                 },
                 "type": "array"
               },
@@ -1850,6 +1961,50 @@
           "score"
         ],
         "title": "ExamOut"
+      },
+      "ExamQuestionOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "position": {
+            "type": "integer",
+            "title": "Position"
+          },
+          "stem": {
+            "type": "string",
+            "title": "Stem"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Options"
+          },
+          "selected_option": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Option"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "position",
+          "stem",
+          "options",
+          "selected_option"
+        ],
+        "title": "ExamQuestionOut",
+        "description": "A question as shown while taking the exam. Never carries the answer."
       },
       "ExamStatus": {
         "type": "string",
@@ -2062,7 +2217,7 @@
           },
           "questions": {
             "items": {
-              "$ref": "#/components/schemas/app__questions__QuestionOut"
+              "$ref": "#/components/schemas/BankQuestionOut"
             },
             "type": "array",
             "title": "Questions"
@@ -2614,118 +2769,6 @@
           "type"
         ],
         "title": "ValidationError"
-      },
-      "app__exams__QuestionOut": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "position": {
-            "type": "integer",
-            "title": "Position"
-          },
-          "stem": {
-            "type": "string",
-            "title": "Stem"
-          },
-          "options": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Options"
-          },
-          "selected_option": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Selected Option"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "position",
-          "stem",
-          "options",
-          "selected_option"
-        ],
-        "title": "QuestionOut",
-        "description": "A question as shown while taking the exam. Never carries the answer."
-      },
-      "app__questions__QuestionOut": {
-        "properties": {
-          "id": {
-            "type": "integer",
-            "title": "Id"
-          },
-          "type": {
-            "$ref": "#/components/schemas/QuestionType"
-          },
-          "document_id": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Document Id"
-          },
-          "stem": {
-            "type": "string",
-            "title": "Stem"
-          },
-          "options": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "type": "object",
-            "title": "Options"
-          },
-          "correct_option": {
-            "type": "string",
-            "title": "Correct Option"
-          },
-          "explanation": {
-            "type": "string",
-            "title": "Explanation"
-          },
-          "citations": {
-            "items": {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            "type": "array",
-            "title": "Citations"
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "type",
-          "document_id",
-          "stem",
-          "options",
-          "correct_option",
-          "explanation",
-          "citations",
-          "created_at"
-        ],
-        "title": "QuestionOut",
-        "description": "The teacher's view of a question: answer, explanation and citations included."
       }
     },
     "securitySchemes": {

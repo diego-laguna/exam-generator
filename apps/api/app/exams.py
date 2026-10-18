@@ -33,7 +33,7 @@ class ExamCreate(BaseModel):
     domains: list[int] | None = Field(None, min_length=1)  # domain ids 1-4
 
 
-class QuestionOut(BaseModel):
+class ExamQuestionOut(BaseModel):
     """A question as shown while taking the exam. Never carries the answer."""
 
     id: int
@@ -54,7 +54,7 @@ class ExamOut(BaseModel):
     ends_at: datetime | None
     submitted_at: datetime | None
     score: int | None
-    questions: list[QuestionOut] | None = None
+    questions: list[ExamQuestionOut] | None = None
 
 
 def exam_out(db: Session, exam: Exam, with_questions: bool = False) -> ExamOut:
@@ -84,7 +84,7 @@ def exam_out(db: Session, exam: Exam, with_questions: bool = False) -> ExamOut:
             .order_by(ExamQuestion.position)
         )
         out.questions = [
-            QuestionOut(
+            ExamQuestionOut(
                 id=q.id, position=pos, stem=q.stem, options=q.options, selected_option=selected
             )
             for pos, q, selected in rows

@@ -12,10 +12,12 @@ export interface ApiClientOptions {
   baseUrl?: string;
   /** Called for every request to get the current access token, if any. */
   getAccessToken?: () => string | null | undefined;
+  /** Replaces the global fetch, e.g. to retry a request after refreshing the session. */
+  fetch?: (request: Request) => Promise<Response>;
 }
 
-export function createApiClient({ baseUrl = "", getAccessToken }: ApiClientOptions = {}) {
-  const client = createClient<paths>({ baseUrl });
+export function createApiClient({ baseUrl = "", getAccessToken, fetch }: ApiClientOptions = {}) {
+  const client = createClient<paths>({ baseUrl, ...(fetch ? { fetch } : {}) });
   if (getAccessToken) {
     const auth: Middleware = {
       onRequest({ request }) {
