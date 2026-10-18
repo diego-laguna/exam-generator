@@ -43,3 +43,25 @@ jobs:
       - run: terraform fmt -check -recursive
       - run: terraform init -backend=false
       - run: terraform validate
+
+  js:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - uses: astral-sh/setup-uv@v6
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      # The committed OpenAPI schema and generated types must match the API.
+      - run: uv sync --frozen
+        working-directory: apps/api
+      - run: |
+          uv run python -m scripts.export_openapi
+          pnpm --filter @learn-assistant/api-client generate
+          git diff --exit-code -- ../../packages/api-client || {
+            echo "::error::API contract changed. Run 'just gen-client' and commit the result."; exit 1; }
+        working-directory: apps/api
