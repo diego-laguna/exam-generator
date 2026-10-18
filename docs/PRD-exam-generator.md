@@ -33,7 +33,7 @@ A REST API for teachers. A teacher uploads PDFs (lesson notes, textbook chapters
 | Role | Description |
 |---|---|
 | `teacher` | Uploads documents, generates questions, builds sets, downloads PDFs. Owns everything they create. |
-| `admin` | Creates users (including teachers) and manages the legacy documentation sources. Cannot see teachers' data. |
+| `admin` | Creates users (including teachers) and manages the documentation sources of the student module. Cannot see teachers' data. |
 | `student` | Legacy module only: takes exams from the fixture bank. |
 
 Admins create users; there is no public registration.
@@ -84,7 +84,7 @@ All under `/api/v1`, teacher-only unless stated. Anything owned by another teach
 | `DELETE /question-sets/{id}` | Delete the set (questions stay) |
 | `GET /question-sets/{id}/pdf?version=student\|teacher` | Printable PDF. `student`: questions and name/date lines. `teacher`: answers, explanations, page/line sources |
 
-Auth endpoints, `POST /users` (admin) and `/health` are unchanged from the legacy PRD.
+Shared endpoints (any role unless noted): `POST /auth/login` and `POST /auth/refresh` (public), `POST /auth/logout`, `POST /users` (admin; sets the role), and the unversioned public `GET /health`. Behavior is in section 8.
 
 ## 7. Data model (new tables)
 
@@ -95,9 +95,24 @@ Auth endpoints, `POST /users` (admin) and `/health` are unchanged from the legac
 - `question_sets`: id, owner_id, title, timestamps
 - `question_set_items`: set_id, question_id, position
 
-## 8. Security
+## 8. Authentication, authorization and security
 
-- Authentication and RBAC as in the legacy PRD; teacher endpoints use `TeacherOnly` plus per-resource ownership dependencies (404 on foreign ids).
+### Authentication
+- Passwords are hashed with argon2.
+- Access tokens are JWTs that expire after 15 minutes. Claims: `sub`, `role`, `exp`, `iat`, `jti`.
+- Refresh tokens are opaque, stored as a hash, valid 7 days, single-use and rotated on every refresh.
+- **Decision:** refresh tokens are deleted (not flagged) on use, on logout and on password change (`revoke_all_refresh_tokens`; there is no password-change endpoint yet). Logout also denylists the access token's `jti` until it expires, so logout takes effect immediately.
+- Admins create users; there is no public registration. Login takes the same time for unknown and known users (dummy hash verification).
+
+### Authorization: composable FastAPI dependencies
+1. `get_current_user`: validates the JWT, checks the denylist, loads the active user.
+2. `require_role(role)`: RBAC (`TeacherOnly`, `AdminOnly`, `StudentOnly`).
+3. Ownership dependencies (`get_owned_document`, `get_owned_job`, `get_owned_question`, `get_owned_set`): load the resource for the caller only. Foreign and missing ids both return 404, so existence is not leaked.
+4. Time and state rules for the student module (section 9).
+
+All authorization lives in dependencies; route handlers contain little beyond calls to services. A test fails if any route is added without authentication or without an entry in the role matrix.
+
+### Uploads, storage and secrets
 - Uploads: size cap enforced while streaming, `%PDF-` magic-byte check, page cap, parse errors turned into safe messages, storage keys generated server-side (never from the file name), file names sanitized for display.
 - PDFs are stored in a private, encrypted S3 bucket with public access blocked; the task role can only touch `documents/*`.
 - Secrets (`JWT_SECRET_KEY`, DB credentials, `ANTHROPIC_API_KEY`) come from the environment; on AWS they are injected from Secrets Manager. The API key is a `SecretStr` and is never logged.
@@ -105,13 +120,37 @@ Auth endpoints, `POST /users` (admin) and `/health` are unchanged from the legac
 
 ## 9. Legacy student module (kept)
 
-The SAA-C03 student exam flow (M1–M4 of the legacy PRD: timed exams, practice mode, stats, URL ingestion of AWS docs for admins) is unchanged and still tested. It is isolated from the teacher tables. Connecting the two (students taking a teacher's set) is a possible later step.
+The SAA-C03 student exam flow (timed exams, practice mode, stats, URL ingestion of AWS docs for admins) is unchanged and still tested. Its spec is [`PRD-aws-saa-study-assistant.md`](PRD-aws-saa-study-assistant.md). It is isolated from the teacher tables. Connecting the two (students taking a teacher's set) is a possible later step.
 
 ## 10. Tech stack
 
 Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, fastembed (`BAAI/bge-small-en-v1.5`), pdfminer.six (PDF text), ReportLab (PDF export), Anthropic API (generation + validation), boto3 (S3). Local: Docker Compose runs Postgres. AWS: see the `aws-deployment` branch.
 
-## 11. Open questions and next steps
+**Why one PostgreSQL database:** retrieval can filter by document and rank by similarity in one SQL query, with transactions across all data and no second store to keep in sync. It also maps directly to RDS or Aurora PostgreSQL, which support pgvector. A dedicated vector database adds nothing at POC scale. The embedding dimension (384) is fixed by the embedding model; changing the model needs a migration and re-embedding.
+
+## 11. Acceptance criteria
+
+- **FR-AUTH-1:** Login with valid credentials returns an access and a refresh token; invalid credentials return 401.
+- **FR-AUTH-2:** An expired, invalid or logged-out access token returns 401 on every protected endpoint.
+- **FR-AUTH-3:** A refresh token rotates on use; a reused or revoked one returns 401.
+- **FR-RBAC-1:** A caller with the wrong role gets 403 on every endpoint (verified by the role matrix test).
+- **FR-OWN-1:** A teacher accessing another teacher's document, generation, question or set gets 404.
+- **FR-DOC-1:** A non-PDF or oversized upload is rejected (422/413); an unreadable or text-less PDF ends as `failed` with a safe message.
+- **FR-GEN-1:** `POST /generations` returns 202 and the job reaches `done` or `failed`; without an API key it returns 503 `LLM_NOT_CONFIGURED`.
+- **FR-GEN-2:** Every stored question has at least one citation whose quote occurs in the cited page and lines.
+- **FR-GEN-3:** No stored question failed blind validation or was flagged ambiguous.
+- **FR-SET-1:** A saved set keeps its question order and can be changed, reused and deleted without deleting its questions.
+- **FR-PDF-1:** The student PDF contains no answers or sources; the teacher PDF contains the answer, explanation and page/line source of every question.
+
+## 12. Non-functional requirements
+
+- All time comparisons use the server clock in UTC (injectable in tests).
+- Configuration comes from environment variables (pydantic-settings); no secrets are kept in the repo.
+- OpenAPI docs are generated automatically and serve as the API contract.
+- Code is type-annotated and passes pyright (standard mode, zero errors); runtime validation uses Pydantic, including all LLM output.
+- Tests use pytest against a real PostgreSQL. They never call the real LLM, S3 or the network (fakes for the model, storage, embedder and PDF input).
+
+## 13. Open questions and next steps
 
 - Durable jobs: replace `BackgroundTasks` with SQS + a worker task so a deploy or crash does not lose a running generation.
 - Edit a question before saving it into a set.
