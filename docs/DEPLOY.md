@@ -39,7 +39,7 @@ REGION=us-east-1                                    # same as in tfvars
 
 # 1. Build and push the image (Fargate runs linux/amd64 here)
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "${ECR%%/*}"
-docker build --platform linux/amd64 -t "$ECR:latest" ../..
+docker build --platform linux/amd64 -t "$ECR:latest" ../../apps/api
 docker push "$ECR:latest"
 
 # 2. Store the Anthropic key without echoing it or putting it on the command line
