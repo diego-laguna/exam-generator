@@ -21,7 +21,7 @@ A REST API for teachers. A teacher uploads PDFs (lesson notes, textbook chapters
 - G6: Be deployable on AWS (container, RDS PostgreSQL + pgvector, S3, Secrets Manager, ECS Fargate).
 
 ### Non-goals (POC)
-- Frontend. The API is the product.
+- A student-facing UI (the web app is for teachers).
 - OCR for scanned PDFs (rejected with a clear error), non-PDF formats, images and tables as sources.
 - Editing a question's text (delete and regenerate instead).
 - Letting students take a teacher's set online (the legacy student module uses its own fixture bank).
@@ -150,7 +150,16 @@ Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, f
 - Code is type-annotated and passes pyright (standard mode, zero errors); runtime validation uses Pydantic, including all LLM output.
 - Tests use pytest against a real PostgreSQL. They never call the real LLM, S3 or the network (fakes for the model, storage, embedder and PDF input).
 
-## 13. Open questions and next steps
+## 13. Web app
+
+`apps/web` is a React + TypeScript single-page app for the `teacher` role, built with Vite, React Router and TanStack Query. It calls the API through a typed client generated from the OpenAPI schema (`packages/api-client`); CI fails if the committed schema or types are stale.
+
+- **Screens:** sign in; documents (upload, processing status, delete); generate (documents, counts, optional focus, job progress); questions (review with answer, explanation and page/line sources; filter; select; delete); question sets (list, rename, remove questions, delete, download the student PDF or the answer key).
+- **Session:** the access token is kept in memory only. After a reload, or on a 401, the app calls `/auth/refresh` and the browser sends the httpOnly refresh cookie; concurrent 401s share one refresh because refresh tokens are single-use. Non-teacher accounts see a "Teachers only" page; the server still enforces roles.
+- **Development:** the Vite dev server proxies `/api` to the API so the browser sees one origin (no CORS). In production the SPA and `/api/*` should also share an origin (for example S3 + CloudFront in front of the ALB), which keeps the `SameSite=Strict` cookie working. Hosting is not part of the Terraform yet.
+- **Tests:** Vitest + Testing Library with `fetch` stubbed; the full flow was also exercised once in a real browser.
+
+## 14. Open questions and next steps
 
 - Durable jobs: replace `BackgroundTasks` with SQS + a worker task so a deploy or crash does not lose a running generation.
 - Edit a question before saving it into a set.

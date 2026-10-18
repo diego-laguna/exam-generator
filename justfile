@@ -55,6 +55,15 @@ gen-client:
     cd apps/api && uv run python -m scripts.export_openapi
     pnpm --filter @learn-assistant/api-client generate
 
-# Type-check all JS packages
+# Type-check all JS packages and run the web tests
 js-check:
     pnpm typecheck
+    pnpm --filter web test
+
+# Run the web app on http://localhost:5173 (proxies /api to the API on :8000)
+web-dev:
+    pnpm --filter web dev
+
+# Production build of the web app (apps/web/dist)
+web-build:
+    pnpm --filter web build

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.dependencies import CurrentUser, DbSession, TeacherOnly
 from app.models import BankQuestion, QuestionSet, QuestionSetItem
 from app.pdf_export import render_question_set_pdf
-from app.questions import QuestionOut
+from app.questions import BankQuestionOut
 
 router = APIRouter(prefix="/question-sets", tags=["question-sets"], dependencies=[TeacherOnly])
 
@@ -43,7 +43,7 @@ class QuestionSetSummary(BaseModel):
 
 
 class QuestionSetOut(QuestionSetSummary):
-    questions: list[QuestionOut]
+    questions: list[BankQuestionOut]
 
 
 def get_owned_set(set_id: int, user: CurrentUser, db: DbSession) -> QuestionSet:
@@ -77,7 +77,7 @@ def _out(db: Session, question_set: QuestionSet) -> QuestionSetOut:
         question_count=len(questions),
         created_at=question_set.created_at,
         updated_at=question_set.updated_at,
-        questions=[QuestionOut.model_validate(q) for q in questions],
+        questions=[BankQuestionOut.model_validate(q) for q in questions],
     )
 
 

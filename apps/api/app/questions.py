@@ -11,7 +11,16 @@ from app.models import BankQuestion, QuestionType
 router = APIRouter(prefix="/questions", tags=["questions"], dependencies=[TeacherOnly])
 
 
-class QuestionOut(BaseModel):
+class CitationOut(BaseModel):
+    document: str
+    chunk_id: int | None = None
+    page: int
+    line_start: int
+    line_end: int
+    quote: str
+
+
+class BankQuestionOut(BaseModel):
     """The teacher's view of a question: answer, explanation and citations included."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -23,7 +32,7 @@ class QuestionOut(BaseModel):
     options: dict[str, str]
     correct_option: str
     explanation: str
-    citations: list[dict]
+    citations: list[CitationOut]
     created_at: datetime
 
 
@@ -39,7 +48,7 @@ def get_owned_question(question_id: int, user: CurrentUser, db: DbSession) -> Ba
 OwnedQuestion = Annotated[BankQuestion, Depends(get_owned_question)]
 
 
-@router.get("", response_model=list[QuestionOut])
+@router.get("", response_model=list[BankQuestionOut])
 def list_questions(
     user: CurrentUser,
     db: DbSession,
@@ -56,7 +65,7 @@ def list_questions(
     return db.scalars(stmt.order_by(BankQuestion.id).limit(limit).offset(offset)).all()
 
 
-@router.get("/{question_id}", response_model=QuestionOut)
+@router.get("/{question_id}", response_model=BankQuestionOut)
 def get_question(question: OwnedQuestion):
     return question
 

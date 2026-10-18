@@ -56,6 +56,8 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm --filter web test
+      - run: pnpm --filter web build
       # The committed OpenAPI schema and generated types must match the API.
       - run: uv sync --frozen
         working-directory: apps/api

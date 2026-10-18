@@ -459,6 +459,34 @@ export interface components {
             /** Explanation */
             explanation?: string | null;
         };
+        /**
+         * BankQuestionOut
+         * @description The teacher's view of a question: answer, explanation and citations included.
+         */
+        BankQuestionOut: {
+            /** Id */
+            id: number;
+            type: components["schemas"]["QuestionType"];
+            /** Document Id */
+            document_id: number | null;
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Correct Option */
+            correct_option: string;
+            /** Explanation */
+            explanation: string;
+            /** Citations */
+            citations: components["schemas"]["CitationOut"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** Body_login_api_v1_auth_login_post */
         Body_login_api_v1_auth_login_post: {
             /** Grant Type */
@@ -487,6 +515,21 @@ export interface components {
         Body_upload_document_api_v1_documents_post: {
             /** File */
             file: string;
+        };
+        /** CitationOut */
+        CitationOut: {
+            /** Document */
+            document: string;
+            /** Chunk Id */
+            chunk_id?: number | null;
+            /** Page */
+            page: number;
+            /** Line Start */
+            line_start: number;
+            /** Line End */
+            line_end: number;
+            /** Quote */
+            quote: string;
         };
         /** DocumentOut */
         DocumentOut: {
@@ -563,7 +606,25 @@ export interface components {
             /** Score */
             score: number | null;
             /** Questions */
-            questions?: components["schemas"]["app__exams__QuestionOut"][] | null;
+            questions?: components["schemas"]["ExamQuestionOut"][] | null;
+        };
+        /**
+         * ExamQuestionOut
+         * @description A question as shown while taking the exam. Never carries the answer.
+         */
+        ExamQuestionOut: {
+            /** Id */
+            id: number;
+            /** Position */
+            position: number;
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Selected Option */
+            selected_option: string | null;
         };
         /**
          * ExamStatus
@@ -653,7 +714,7 @@ export interface components {
              */
             updated_at: string;
             /** Questions */
-            questions: components["schemas"]["app__questions__QuestionOut"][];
+            questions: components["schemas"]["BankQuestionOut"][];
         };
         /** QuestionSetSummary */
         QuestionSetSummary: {
@@ -859,54 +920,6 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
-        };
-        /**
-         * QuestionOut
-         * @description A question as shown while taking the exam. Never carries the answer.
-         */
-        app__exams__QuestionOut: {
-            /** Id */
-            id: number;
-            /** Position */
-            position: number;
-            /** Stem */
-            stem: string;
-            /** Options */
-            options: {
-                [key: string]: string;
-            };
-            /** Selected Option */
-            selected_option: string | null;
-        };
-        /**
-         * QuestionOut
-         * @description The teacher's view of a question: answer, explanation and citations included.
-         */
-        app__questions__QuestionOut: {
-            /** Id */
-            id: number;
-            type: components["schemas"]["QuestionType"];
-            /** Document Id */
-            document_id: number | null;
-            /** Stem */
-            stem: string;
-            /** Options */
-            options: {
-                [key: string]: string;
-            };
-            /** Correct Option */
-            correct_option: string;
-            /** Explanation */
-            explanation: string;
-            /** Citations */
-            citations: {
-                [key: string]: unknown;
-            }[];
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
         };
     };
     responses: never;
@@ -1592,7 +1605,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__questions__QuestionOut"][];
+                    "application/json": components["schemas"]["BankQuestionOut"][];
                 };
             };
             /** @description Validation Error */
@@ -1623,7 +1636,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["app__questions__QuestionOut"];
+                    "application/json": components["schemas"]["BankQuestionOut"];
                 };
             };
             /** @description Validation Error */
