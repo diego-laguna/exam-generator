@@ -1,4 +1,4 @@
-# learn-assistant API
+# Exam-Generator API
 
 This is the Python/FastAPI service of the monorepo (see the [root README](../../README.md)). All commands below run from `apps/api`; from the repo root, `just` recipes wrap them. `docs/`, `infra/terraform/`, `compose.yaml` and the CI workflow live at the repo root.
 
