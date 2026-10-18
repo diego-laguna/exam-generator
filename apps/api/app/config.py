@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 7
+    # The refresh token is also sent as an httpOnly cookie for browser clients. Turn Secure off only
+    # for plain-HTTP deployments without TLS (local dev on localhost works with Secure on).
+    refresh_cookie_secure: bool = True
 
     exam_minutes_per_question: int = 2  # 65 questions -> 130 minutes
     exam_default_questions: int = 65

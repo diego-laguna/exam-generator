@@ -164,3 +164,60 @@ def test_expired_access_token_rejected():
         algorithm=s.jwt_algorithm,
     )
     assert client.get("/_test/admin", headers=bearer(expired)).status_code == 401
+
+
+# --- refresh token cookie for browser clients ---------------------------------------------------
+
+
+def _cookie_header(response):
+    return next(h for h in response.headers.get_list("set-cookie") if h.startswith("refresh_token="))
+
+
+def _browser(raw):
+    """A fresh client that presents the refresh token as a cookie only (no body)."""
+    browser = TestClient(app, base_url="https://testserver")
+    browser.cookies.set("refresh_token", raw, path="/api/v1/auth")
+    return browser
+
+
+def test_login_sets_a_locked_down_refresh_cookie_and_keeps_the_body_token():
+    r = login()
+    header = _cookie_header(r).lower()
+    assert f"refresh_token={r.json()['refresh_token']}".lower() in header
+    for part in ("httponly", "secure", "samesite=strict", "path=/api/v1/auth", "max-age=604800"):
+        assert part in header, header
+
+
+def test_cookie_secure_flag_can_be_turned_off_for_plain_http(monkeypatch):
+    monkeypatch.setattr(get_settings(), "refresh_cookie_secure", False)
+    assert "secure" not in _cookie_header(login()).lower().replace("samesite", "")
+
+
+def test_refresh_works_from_the_cookie_alone_and_rotates_it():
+    raw = tokens()["refresh_token"]
+    r = _browser(raw).post("/api/v1/auth/refresh")
+    assert r.status_code == 200
+    assert r.json()["refresh_token"] != raw
+    assert r.json()["refresh_token"] in _cookie_header(r)
+    assert _browser(raw).post("/api/v1/auth/refresh").status_code == 401  # single-use
+
+
+def test_refresh_without_body_or_cookie_is_401():
+    assert TestClient(app).post("/api/v1/auth/refresh").status_code == 401
+
+
+def test_body_token_wins_over_the_cookie():
+    good = tokens()["refresh_token"]
+    browser = _browser("not-a-real-token")
+    assert browser.post("/api/v1/auth/refresh", json={"refresh_token": good}).status_code == 200
+
+
+def test_logout_with_cookie_revokes_the_refresh_token_and_clears_the_cookie():
+    t = tokens()
+    browser = _browser(t["refresh_token"])
+    r = browser.post("/api/v1/auth/logout", headers=bearer(t["access_token"]))
+    assert r.status_code == 204
+    cleared = _cookie_header(r).lower()
+    assert 'refresh_token=""' in cleared or "refresh_token=;" in cleared
+    assert "max-age=0" in cleared
+    assert refresh(t["refresh_token"]).status_code == 401
