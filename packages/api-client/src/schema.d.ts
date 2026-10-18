@@ -13,7 +13,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login */
+        /**
+         * Sign in
+         * @description Exchange a username and password (OAuth2 password form) for a short-lived access token and a single-use refresh token. Browsers also receive the refresh token as an httpOnly cookie.
+         *
+         *     **Use case:** Dave opens the web app and signs in as `dave`. The app keeps the access token in memory and sends it as `Authorization: Bearer ...` on every call. In Swagger, use the Authorize button.
+         */
         post: operations["login_api_v1_auth_login_post"];
         delete?: never;
         options?: never;
@@ -30,7 +35,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Refresh */
+        /**
+         * Rotate the session tokens
+         * @description Trade a refresh token (request body, or the cookie when the body is empty) for a new access token and a new refresh token. A refresh token works once; presenting it a second time fails.
+         *
+         *     **Use case:** Dave's access token expired after 15 minutes. The web app calls this endpoint silently and retries the request that got a 401, so Dave never sees the login screen.
+         */
         post: operations["refresh_api_v1_auth_refresh_post"];
         delete?: never;
         options?: never;
@@ -47,7 +57,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Logout */
+        /**
+         * Sign out
+         * @description Revokes the current access token and deletes the presented refresh token (body or cookie), then clears the cookie. Requires a valid access token.
+         *
+         *     **Use case:** Dave signs out on a shared classroom computer. The old tokens stop working immediately, even if someone copied them.
+         */
         post: operations["logout_api_v1_auth_logout_post"];
         delete?: never;
         options?: never;
@@ -64,7 +79,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create User Endpoint */
+        /**
+         * Create a user
+         * @description Admin only. Creates an account with a username, a password and a role (`student`, `teacher` or `admin`). Responds 409 when the username is taken.
+         *
+         *     **Use case:** At the start of term the admin creates a `teacher` account for a new colleague and shares the temporary password out of band.
+         */
         post: operations["create_user_endpoint_api_v1_users_post"];
         delete?: never;
         options?: never;
@@ -79,10 +99,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Sources */
+        /**
+         * List documentation sources
+         * @description Any signed-in user. Lists every ingested source with its status (`pending`, `ingesting`, `ready`, `failed`) and chunk count. The `error` text is only filled in for admins.
+         *
+         *     **Use case:** After adding a source, the admin refreshes the list to see whether it reached `ready` and how many chunks it produced.
+         */
         get: operations["list_sources_api_v1_sources_get"];
         put?: never;
-        /** Create Source */
+        /**
+         * Add a documentation source
+         * @description Admin only. Queues an AWS documentation page (HTML or PDF) for download, chunking and embedding. Only allowlisted hosts over https are accepted, redirects included. Returns 202; poll `GET /sources` until the status is `ready` or `failed`.
+         *
+         *     **Use case:** The admin submits `{"url": "https://docs.aws.amazon.com/pdfs/AmazonECR/latest/userguide/ecr-ug.pdf"}` to add the ECR guide to the study material.
+         */
         post: operations["create_source_api_v1_sources_post"];
         delete?: never;
         options?: never;
@@ -100,7 +130,12 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete Source */
+        /**
+         * Delete a source
+         * @description Admin only. Removes a source and all of its chunks. Responds 404 for an unknown id.
+         *
+         *     **Use case:** A page was ingested by mistake, so the admin deletes source 7 and its chunks disappear with it.
+         */
         delete: operations["delete_source_api_v1_sources__source_id__delete"];
         options?: never;
         head?: never;
@@ -116,7 +151,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create Samples */
+        /**
+         * Add sample questions
+         * @description Admin only. Adds up to 50 hand-written sample questions in one request, all or nothing. Each names a task statement code (such as `1.1`) or a domain id, four options A-D and the correct one.
+         *
+         *     **Use case:** The admin pastes a JSON batch `{"samples": [{"task_statement": "1.1", "stem": "...", "options": {"A": "...", "B": "...", "C": "...", "D": "..."}, "correct_option": "B"}]}` to grow the question bank.
+         */
         post: operations["create_samples_api_v1_samples_post"];
         delete?: never;
         options?: never;
@@ -132,12 +172,19 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Exams
-         * @description The caller's 100 most recent exams, newest first.
+         * List my exams
+         * @description Student only. The caller's 100 most recent exams and practice sessions, newest first. An exam past its deadline is finalized before it is listed.
+         *
+         *     **Use case:** Bob opens his dashboard to resume the session he left in progress and to see last week's score.
          */
         get: operations["list_exams_api_v1_exams_get"];
         put?: never;
-        /** Create Exam */
+        /**
+         * Create an exam or practice session
+         * @description Student only. Creates a timed `exam` (2 minutes per question) or an untimed `practice` session from the question bank, optionally limited to domain ids 1-4 and a question count. If the bank has fewer questions, you get what exists.
+         *
+         *     **Use case:** Bob sends `{"mode": "practice", "domains": [2], "question_count": 10}` to drill resilient architectures.
+         */
         post: operations["create_exam_api_v1_exams_post"];
         delete?: never;
         options?: never;
@@ -152,7 +199,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Exam */
+        /**
+         * Get an exam
+         * @description Student only, owner only. Status and score, plus the questions with Bob's selections once the exam has started. Never includes correct answers or explanations.
+         *
+         *     **Use case:** After a page reload Bob fetches `GET /exams/3` to restore his selections and the remaining time.
+         */
         get: operations["get_exam_api_v1_exams__exam_id__get"];
         put?: never;
         post?: never;
@@ -171,7 +223,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Start Exam */
+        /**
+         * Start an exam
+         * @description Student only, owner only. Starts the clock on the server and returns the questions. 409 if already started.
+         *
+         *     **Use case:** Bob clicks Start and has 130 minutes for a 65-question exam; the deadline is `ends_at`.
+         */
         post: operations["start_exam_api_v1_exams__exam_id__start_post"];
         delete?: never;
         options?: never;
@@ -187,7 +244,12 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Save Answer */
+        /**
+         * Save an answer
+         * @description Student only, owner only, while the exam window is open. Saves or overwrites the selected option (A-D). In practice mode the response includes whether it was right, the correct option and the explanation.
+         *
+         *     **Use case:** In a practice session Bob sends `{"selected_option": "C"}` and immediately reads why C was wrong.
+         */
         put: operations["save_answer_api_v1_exams__exam_id__answers__question_id__put"];
         post?: never;
         delete?: never;
@@ -205,7 +267,12 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit Exam */
+        /**
+         * Submit an exam
+         * @description Student only, owner only, while the window is open. Finalizes and scores the exam. After the deadline it is finalized automatically on the next access.
+         *
+         *     **Use case:** Bob finishes early and submits with 20 minutes left; results unlock at once.
+         */
         post: operations["submit_exam_api_v1_exams__exam_id__submit_post"];
         delete?: never;
         options?: never;
@@ -220,7 +287,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Results */
+        /**
+         * Get results
+         * @description Student only, owner only. Score, correct answers and explanations. Exam mode answers 403 `RESULTS_LOCKED` until the exam is finished; practice mode shows the questions answered so far.
+         *
+         *     **Use case:** Bob reviews every missed question with its explanation after submitting.
+         */
         get: operations["get_results_api_v1_exams__exam_id__results_get"];
         put?: never;
         post?: never;
@@ -238,11 +310,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * My Stats
-         * @description Accuracy per domain and task statement.
+         * My accuracy statistics
+         * @description Accuracy per domain and task statement for the caller. Counts practice answers and answers from finished exams only, so answers in a running exam cannot be used to learn which were right.
          *
-         *     Counts practice answers and answers from finished exams only, so in-progress exam
-         *     answers can't be used to learn which questions were right before results unlock.
+         *     **Use case:** Bob finishes three practice sessions, opens his stats and sees that Domain 2 (resilient architectures) is his weakest, so he practises it next.
          */
         get: operations["my_stats_api_v1_me_stats_get"];
         put?: never;
@@ -260,10 +331,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Documents */
+        /**
+         * List my documents
+         * @description Teacher only. Lists the caller's own documents with status, page count and chunk count. A document stuck in processing for too long is reported as `failed`.
+         *
+         *     **Use case:** Dave opens the Documents screen to see which uploads finished.
+         */
         get: operations["list_documents_api_v1_documents_get"];
         put?: never;
-        /** Upload Document */
+        /**
+         * Upload a PDF
+         * @description Teacher only. Uploads a PDF (multipart field `file`). The text is extracted with page and line numbers, split into chunks and embedded in the background. Returns 202; poll the document until its status is `ready` or `failed` (for example a scanned PDF with no text, or too many pages).
+         *
+         *     **Use case:** Dave uploads `biology-chapter-3.pdf` and, when the status turns `ready`, uses it to generate questions.
+         */
         post: operations["upload_document_api_v1_documents_post"];
         delete?: never;
         options?: never;
@@ -278,11 +359,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Document */
+        /**
+         * Get one document
+         * @description Teacher only. Returns one of the caller's documents. Another teacher's document answers 404.
+         *
+         *     **Use case:** The app polls `GET /documents/12` every few seconds after an upload until `status` is `ready`.
+         */
         get: operations["get_document_api_v1_documents__document_id__get"];
         put?: never;
         post?: never;
-        /** Delete Document */
+        /**
+         * Delete a document
+         * @description Teacher only. Deletes the document, its chunks and the stored file. Questions already generated keep their citation text, so saved sets and PDFs stay intact.
+         *
+         *     **Use case:** Dave removes an outdated edition of the textbook; the questions he already made from it remain usable.
+         */
         delete: operations["delete_document_api_v1_documents__document_id__delete"];
         options?: never;
         head?: never;
@@ -296,10 +387,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Generations */
+        /**
+         * List my generation jobs
+         * @description Teacher only. The caller's 50 most recent jobs, newest first, with status and how many questions were produced. Stale jobs are reported as `failed`.
+         *
+         *     **Use case:** Dave reloads the page mid-generation and finds his job still `running` in this list.
+         */
         get: operations["list_generations_api_v1_generations_get"];
         put?: never;
-        /** Create Generation */
+        /**
+         * Generate questions
+         * @description Teacher only. Starts a background job that writes multiple-choice and true/false questions from the chosen ready documents. Each question carries citations (document, page, lines, quote) that are checked against the PDF text, and must pass a second, blind validation before it is stored. One job runs at a time per teacher (409 otherwise); 503 when no Anthropic key is configured.
+         *
+         *     **Use case:** Dave sends `{"document_ids": [12], "mcq_count": 8, "true_false_count": 2, "focus": "photosynthesis"}` and gets back a job to watch.
+         */
         post: operations["create_generation_api_v1_generations_post"];
         delete?: never;
         options?: never;
@@ -314,7 +415,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Generation */
+        /**
+         * Get one generation job
+         * @description Teacher only. Status, counts and the ids of the questions produced so far for one job. Another teacher's job answers 404.
+         *
+         *     **Use case:** The app polls `GET /generations/5` until the status is `done` (or `failed`), then opens the new questions.
+         */
         get: operations["get_generation_api_v1_generations__job_id__get"];
         put?: never;
         post?: never;
@@ -331,7 +437,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Questions */
+        /**
+         * List my questions
+         * @description Teacher only. Lists the caller's generated questions with answer, explanation and citations. Filter by `document_id` or `type` (`mcq`, `true_false`); page with `limit` and `offset`.
+         *
+         *     **Use case:** Dave filters to `type=true_false` for document 12 to review those questions before building a quiz.
+         */
         get: operations["list_questions_api_v1_questions_get"];
         put?: never;
         post?: never;
@@ -348,11 +459,21 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Question */
+        /**
+         * Get one question
+         * @description Teacher only. One question with its correct option, explanation and verified citations. Another teacher's question answers 404.
+         *
+         *     **Use case:** Dave opens question 41 to read the quoted passage and check the page and line numbers.
+         */
         get: operations["get_question_api_v1_questions__question_id__get"];
         put?: never;
         post?: never;
-        /** Delete Question */
+        /**
+         * Delete a question
+         * @description Teacher only. Deletes the question; it also leaves any question set that included it.
+         *
+         *     **Use case:** Dave spots a poorly worded question and deletes it so it never reaches a printed exam.
+         */
         delete: operations["delete_question_api_v1_questions__question_id__delete"];
         options?: never;
         head?: never;
@@ -366,10 +487,20 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List Question Sets */
+        /**
+         * List my question sets
+         * @description Teacher only. The caller's saved sets with title and question count.
+         *
+         *     **Use case:** Next semester Dave opens the list and finds last year's "Unit 3 quiz" to reuse.
+         */
         get: operations["list_question_sets_api_v1_question_sets_get"];
         put?: never;
-        /** Create Question Set */
+        /**
+         * Create a question set
+         * @description Teacher only. Saves a titled, ordered selection of the caller's own questions for reuse. Ids must be unique and owned by the caller.
+         *
+         *     **Use case:** Dave picks 10 reviewed questions and saves `{"title": "Unit 3 quiz", "question_ids": [41, 42, 45]}`.
+         */
         post: operations["create_question_set_api_v1_question_sets_post"];
         delete?: never;
         options?: never;
@@ -384,12 +515,27 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Question Set */
+        /**
+         * Get one question set
+         * @description Teacher only. A set with its questions in order, including answers and citations. Another teacher's set answers 404.
+         *
+         *     **Use case:** Dave opens the set to check the order before printing.
+         */
         get: operations["get_question_set_api_v1_question_sets__set_id__get"];
-        /** Replace Question Set */
+        /**
+         * Replace a question set
+         * @description Teacher only. Replaces the title and the full ordered list of questions of an existing set.
+         *
+         *     **Use case:** Dave swaps two weak questions for better ones and reorders the rest, keeping the same set and title.
+         */
         put: operations["replace_question_set_api_v1_question_sets__set_id__put"];
         post?: never;
-        /** Delete Question Set */
+        /**
+         * Delete a question set
+         * @description Teacher only. Deletes the set only; the questions stay in the bank.
+         *
+         *     **Use case:** Dave removes an obsolete quiz without losing the questions he may reuse in another set.
+         */
         delete: operations["delete_question_set_api_v1_question_sets__set_id__delete"];
         options?: never;
         head?: never;
@@ -404,8 +550,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Download Pdf
-         * @description `student`: questions only, with name/date lines. `teacher`: answers, explanations, sources.
+         * Download a printable PDF
+         * @description Teacher only. Renders the set as a PDF. `version=student` (default) has the questions with name and date lines; `version=teacher` adds the correct answers, explanations and the cited source, page and lines. Responds 409 for an empty set.
+         *
+         *     **Use case:** Dave downloads `?version=student` to print for the class and keeps `?version=teacher` as his answer key.
          */
         get: operations["download_pdf_api_v1_question_sets__set_id__pdf_get"];
         put?: never;
@@ -423,7 +571,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description Liveness probe. Public, no sign-in needed.
+         *
+         *     **Use case:** the load balancer calls `GET /health` every few seconds, and the web app shows
+         *     the same answer from `GET /api/v1/health` as its API status dot.
+         */
         get: operations["health_api_v1_health_get"];
         put?: never;
         post?: never;
@@ -440,7 +594,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description Liveness probe. Public, no sign-in needed.
+         *
+         *     **Use case:** the load balancer calls `GET /health` every few seconds, and the web app shows
+         *     the same answer from `GET /api/v1/health` as its API status dot.
+         */
         get: operations["health_health_get"];
         put?: never;
         post?: never;

@@ -33,7 +33,17 @@ def _accuracy(attempted: int, correct: int) -> float | None:
     return round(correct / attempted, 3) if attempted else None
 
 
-@router.get("/me/stats", response_model=StatsOut, dependencies=[AnyUser])
+@router.get(
+    "/me/stats",
+    response_model=StatsOut,
+    dependencies=[AnyUser],
+    summary="My accuracy statistics",
+    description=(
+        "Accuracy per domain and task statement for the caller. Counts practice answers and answers from finished exams only, so answers in a running exam cannot be used to learn which were right."
+        "\n\n"
+        "**Use case:** Bob finishes three practice sessions, opens his stats and sees that Domain 2 (resilient architectures) is his weakest, so he practises it next."
+    ),
+)
 def my_stats(user: CurrentUser, db: DbSession):
     """Accuracy per domain and task statement.
 

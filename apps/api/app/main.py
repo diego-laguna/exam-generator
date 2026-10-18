@@ -10,9 +10,36 @@ from app.sources import router as sources_router
 from app.stats import router as stats_router
 from app.users import router as users_router
 
-app = FastAPI(title="Exam-Generator API")
+DESCRIPTION = """
+Teachers upload PDFs and the API generates multiple-choice and true/false questions that cite
+file, page and line. Teachers save question sets and download printable PDFs. A smaller student
+module offers timed exams and practice sessions.
+
+**Sign in:** call `POST /api/v1/auth/login`, or use the **Authorize** button with a username and
+password. Each endpoint below says who may call it and gives a **Use case** example.
+"""
+
+TAGS = [
+    {"name": "auth", "description": "Sign in, rotate tokens, sign out."},
+    {"name": "users", "description": "Account creation (admin)."},
+    {"name": "documents", "description": "Teacher PDFs: upload, status, delete."},
+    {"name": "generations", "description": "Background jobs that generate cited questions."},
+    {"name": "questions", "description": "The teacher's generated question bank."},
+    {"name": "question-sets", "description": "Saved selections of questions and their printable PDFs."},
+    {"name": "exams", "description": "Student exams and practice sessions."},
+    {"name": "stats", "description": "Student accuracy by domain."},
+    {"name": "sources", "description": "Admin: AWS documentation sources and sample questions."},
+    {"name": "health", "description": "Liveness probe."},
+]
+
+app = FastAPI(title="Exam-Generator API", description=DESCRIPTION, openapi_tags=TAGS)
 
 def health():
+    """Liveness probe. Public, no sign-in needed.
+
+    **Use case:** the load balancer calls `GET /health` every few seconds, and the web app shows
+    the same answer from `GET /api/v1/health` as its API status dot.
+    """
     return {"status": "ok"}
 
 

@@ -92,7 +92,17 @@ def get_owned_job(job_id: int, user: CurrentUser, db: DbSession, clock: ClockDep
 OwnedJob = Annotated[GenerationJob, Depends(get_owned_job)]
 
 
-@router.post("", response_model=GenerationOut, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "",
+    response_model=GenerationOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Generate questions",
+    description=(
+        "Teacher only. Starts a background job that writes multiple-choice and true/false questions from the chosen ready documents. Each question carries citations (document, page, lines, quote) that are checked against the PDF text, and must pass a second, blind validation before it is stored. One job runs at a time per teacher (409 otherwise); 503 when no Anthropic key is configured."
+        "\n\n"
+        "**Use case:** Dave sends `{\"document_ids\": [12], \"mcq_count\": 8, \"true_false_count\": 2, \"focus\": \"photosynthesis\"}` and gets back a job to watch."
+    ),
+)
 def create_generation(
     body: GenerationCreate,
     user: CurrentUser,
@@ -135,7 +145,16 @@ def create_generation(
     return _out(db, job)
 
 
-@router.get("", response_model=list[GenerationOut])
+@router.get(
+    "",
+    response_model=list[GenerationOut],
+    summary="List my generation jobs",
+    description=(
+        "Teacher only. The caller's 50 most recent jobs, newest first, with status and how many questions were produced. Stale jobs are reported as `failed`."
+        "\n\n"
+        "**Use case:** Dave reloads the page mid-generation and finds his job still `running` in this list."
+    ),
+)
 def list_generations(user: CurrentUser, db: DbSession, clock: ClockDep):
     jobs = db.scalars(
         select(GenerationJob).where(GenerationJob.owner_id == user.id).order_by(GenerationJob.id.desc()).limit(50)
@@ -145,6 +164,15 @@ def list_generations(user: CurrentUser, db: DbSession, clock: ClockDep):
     return [_out(db, j) for j in jobs]
 
 
-@router.get("/{job_id}", response_model=GenerationOut)
+@router.get(
+    "/{job_id}",
+    response_model=GenerationOut,
+    summary="Get one generation job",
+    description=(
+        "Teacher only. Status, counts and the ids of the questions produced so far for one job. Another teacher's job answers 404."
+        "\n\n"
+        "**Use case:** The app polls `GET /generations/5` until the status is `done` (or `failed`), then opens the new questions."
+    ),
+)
 def get_generation(job: OwnedJob, db: DbSession):
     return _out(db, job)

@@ -86,7 +86,16 @@ def _invalid_credentials() -> HTTPException:
     )
 
 
-@router.post("/login", response_model=TokenPair)
+@router.post(
+    "/login",
+    response_model=TokenPair,
+    summary="Sign in",
+    description=(
+        "Exchange a username and password (OAuth2 password form) for a short-lived access token and a single-use refresh token. Browsers also receive the refresh token as an httpOnly cookie."
+        "\n\n"
+        "**Use case:** Dave opens the web app and signs in as `dave`. The app keeps the access token in memory and sends it as `Authorization: Bearer ...` on every call. In Swagger, use the Authorize button."
+    ),
+)
 def login(
     form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession, response: Response
 ):
@@ -108,7 +117,16 @@ def login(
     return tokens
 
 
-@router.post("/refresh", response_model=TokenPair)
+@router.post(
+    "/refresh",
+    response_model=TokenPair,
+    summary="Rotate the session tokens",
+    description=(
+        "Trade a refresh token (request body, or the cookie when the body is empty) for a new access token and a new refresh token. A refresh token works once; presenting it a second time fails."
+        "\n\n"
+        "**Use case:** Dave's access token expired after 15 minutes. The web app calls this endpoint silently and retries the request that got a 401, so Dave never sees the login screen."
+    ),
+)
 def refresh(
     request: Request, response: Response, db: DbSession, body: RefreshRequest | None = None
 ):
@@ -137,7 +155,16 @@ def refresh(
     return tokens
 
 
-@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/logout",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Sign out",
+    description=(
+        "Revokes the current access token and deletes the presented refresh token (body or cookie), then clears the cookie. Requires a valid access token."
+        "\n\n"
+        "**Use case:** Dave signs out on a shared classroom computer. The old tokens stop working immediately, even if someone copied them."
+    ),
+)
 def logout(
     request: Request,
     claims: Annotated[dict, Depends(get_current_claims)],

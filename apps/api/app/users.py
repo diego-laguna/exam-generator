@@ -54,6 +54,12 @@ def create_user(db: Session, username: str, password: str, role: Role) -> User:
     response_model=UserOut,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_role(Role.admin))],
+    summary="Create a user",
+    description=(
+        "Admin only. Creates an account with a username, a password and a role (`student`, `teacher` or `admin`). Responds 409 when the username is taken."
+        "\n\n"
+        "**Use case:** At the start of term the admin creates a `teacher` account for a new colleague and shares the temporary password out of band."
+    ),
 )
 def create_user_endpoint(body: UserCreate, db: DbSession):
     try:

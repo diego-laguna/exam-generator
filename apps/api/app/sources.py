@@ -51,6 +51,12 @@ def _out(src: Source, chunk_count: int, viewer: Role) -> SourceOut:
     response_model=SourceOut,
     status_code=status.HTTP_202_ACCEPTED,
     dependencies=[AdminOnly],
+    summary="Add a documentation source",
+    description=(
+        "Admin only. Queues an AWS documentation page (HTML or PDF) for download, chunking and embedding. Only allowlisted hosts over https are accepted, redirects included. Returns 202; poll `GET /sources` until the status is `ready` or `failed`."
+        "\n\n"
+        "**Use case:** The admin submits `{\"url\": \"https://docs.aws.amazon.com/pdfs/AmazonECR/latest/userguide/ecr-ug.pdf\"}` to add the ECR guide to the study material."
+    ),
 )
 def create_source(
     body: SourceCreate,
@@ -72,7 +78,17 @@ def create_source(
     return _out(source, 0, user.role)
 
 
-@router.get("/sources", response_model=list[SourceOut], dependencies=[AnyUser])
+@router.get(
+    "/sources",
+    response_model=list[SourceOut],
+    dependencies=[AnyUser],
+    summary="List documentation sources",
+    description=(
+        "Any signed-in user. Lists every ingested source with its status (`pending`, `ingesting`, `ready`, `failed`) and chunk count. The `error` text is only filled in for admins."
+        "\n\n"
+        "**Use case:** After adding a source, the admin refreshes the list to see whether it reached `ready` and how many chunks it produced."
+    ),
+)
 def list_sources(user: CurrentUser, db: DbSession):
     rows = db.execute(
         select(Source, func.count(Chunk.id))
@@ -84,7 +100,15 @@ def list_sources(user: CurrentUser, db: DbSession):
 
 
 @router.delete(
-    "/sources/{source_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[AdminOnly]
+    "/sources/{source_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[AdminOnly],
+    summary="Delete a source",
+    description=(
+        "Admin only. Removes a source and all of its chunks. Responds 404 for an unknown id."
+        "\n\n"
+        "**Use case:** A page was ingested by mistake, so the admin deletes source 7 and its chunks disappear with it."
+    ),
 )
 def delete_source(source_id: int, db: DbSession):
     source = db.get(Source, source_id)
@@ -133,6 +157,12 @@ class SamplesCreated(BaseModel):
     response_model=SamplesCreated,
     status_code=status.HTTP_201_CREATED,
     dependencies=[AdminOnly],
+    summary="Add sample questions",
+    description=(
+        "Admin only. Adds up to 50 hand-written sample questions in one request, all or nothing. Each names a task statement code (such as `1.1`) or a domain id, four options A-D and the correct one."
+        "\n\n"
+        "**Use case:** The admin pastes a JSON batch `{\"samples\": [{\"task_statement\": \"1.1\", \"stem\": \"...\", \"options\": {\"A\": \"...\", \"B\": \"...\", \"C\": \"...\", \"D\": \"...\"}, \"correct_option\": \"B\"}]}` to grow the question bank."
+    ),
 )
 def create_samples(body: SamplesCreate, db: DbSession, embedder: EmbedderDep):
     tasks = {t.code: t for t in db.scalars(select(TaskStatement))}

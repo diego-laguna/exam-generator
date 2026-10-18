@@ -96,6 +96,12 @@ def exam_out(db: Session, exam: Exam, with_questions: bool = False) -> ExamOut:
     "/exams",
     response_model=ExamOut,
     status_code=status.HTTP_202_ACCEPTED,
+    summary="Create an exam or practice session",
+    description=(
+        "Student only. Creates a timed `exam` (2 minutes per question) or an untimed `practice` session from the question bank, optionally limited to domain ids 1-4 and a question count. If the bank has fewer questions, you get what exists."
+        "\n\n"
+        "**Use case:** Bob sends `{\"mode\": \"practice\", \"domains\": [2], \"question_count\": 10}` to drill resilient architectures."
+    ),
 )
 def create_exam(body: ExamCreate, user: CurrentUser, db: DbSession):
     if body.domains:
@@ -126,7 +132,16 @@ class ExamSummary(BaseModel):
     created_at: datetime
 
 
-@router.get("/exams", response_model=list[ExamSummary])
+@router.get(
+    "/exams",
+    response_model=list[ExamSummary],
+    summary="List my exams",
+    description=(
+        "Student only. The caller's 100 most recent exams and practice sessions, newest first. An exam past its deadline is finalized before it is listed."
+        "\n\n"
+        "**Use case:** Bob opens his dashboard to resume the session he left in progress and to see last week's score."
+    ),
+)
 def list_exams(user: CurrentUser, db: DbSession, clock: ClockDep):
     """The caller's 100 most recent exams, newest first."""
     exams = db.scalars(
@@ -152,12 +167,30 @@ def list_exams(user: CurrentUser, db: DbSession, clock: ClockDep):
     ]
 
 
-@router.get("/exams/{exam_id}", response_model=ExamOut)
+@router.get(
+    "/exams/{exam_id}",
+    response_model=ExamOut,
+    summary="Get an exam",
+    description=(
+        "Student only, owner only. Status and score, plus the questions with Bob's selections once the exam has started. Never includes correct answers or explanations."
+        "\n\n"
+        "**Use case:** After a page reload Bob fetches `GET /exams/3` to restore his selections and the remaining time."
+    ),
+)
 def get_exam(exam: OwnedExam, db: DbSession):
     return exam_out(db, exam, with_questions=True)
 
 
-@router.post("/exams/{exam_id}/start", response_model=ExamOut)
+@router.post(
+    "/exams/{exam_id}/start",
+    response_model=ExamOut,
+    summary="Start an exam",
+    description=(
+        "Student only, owner only. Starts the clock on the server and returns the questions. 409 if already started."
+        "\n\n"
+        "**Use case:** Bob clicks Start and has 130 minutes for a 65-question exam; the deadline is `ends_at`."
+    ),
+)
 def start_exam(exam: OwnedExam, db: DbSession, clock: ClockDep):
     if exam.status in (ExamStatus.in_progress, ExamStatus.finished):
         raise error(status.HTTP_409_CONFLICT, "EXAM_ALREADY_STARTED", "The exam was already started")
@@ -190,6 +223,12 @@ class AnswerOut(BaseModel):
     "/exams/{exam_id}/answers/{question_id}",
     response_model=AnswerOut,
     response_model_exclude_none=True,
+    summary="Save an answer",
+    description=(
+        "Student only, owner only, while the exam window is open. Saves or overwrites the selected option (A-D). In practice mode the response includes whether it was right, the correct option and the explanation."
+        "\n\n"
+        "**Use case:** In a practice session Bob sends `{\"selected_option\": \"C\"}` and immediately reads why C was wrong."
+    ),
 )
 def save_answer(question_id: int, body: AnswerIn, exam: ActiveExam, db: DbSession, clock: ClockDep):
     question = db.get(Question, question_id)
@@ -224,7 +263,16 @@ def save_answer(question_id: int, body: AnswerIn, exam: ActiveExam, db: DbSessio
     return out
 
 
-@router.post("/exams/{exam_id}/submit", response_model=ExamOut)
+@router.post(
+    "/exams/{exam_id}/submit",
+    response_model=ExamOut,
+    summary="Submit an exam",
+    description=(
+        "Student only, owner only, while the window is open. Finalizes and scores the exam. After the deadline it is finalized automatically on the next access."
+        "\n\n"
+        "**Use case:** Bob finishes early and submits with 20 minutes left; results unlock at once."
+    ),
+)
 def submit_exam(exam: ActiveExam, db: DbSession, clock: ClockDep):
     finalize_exam(db, exam, submitted_at=clock())
     db.commit()
@@ -255,7 +303,16 @@ class ResultsOut(BaseModel):
     questions: list[ResultQuestion]
 
 
-@router.get("/exams/{exam_id}/results", response_model=ResultsOut)
+@router.get(
+    "/exams/{exam_id}/results",
+    response_model=ResultsOut,
+    summary="Get results",
+    description=(
+        "Student only, owner only. Score, correct answers and explanations. Exam mode answers 403 `RESULTS_LOCKED` until the exam is finished; practice mode shows the questions answered so far."
+        "\n\n"
+        "**Use case:** Bob reviews every missed question with its explanation after submitting."
+    ),
+)
 def get_results(exam: UnlockedExam, db: DbSession):
     rows = db.execute(
         select(ExamQuestion.position, Question, Domain.name, TaskStatement.code, Answer)
