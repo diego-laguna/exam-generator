@@ -45,6 +45,7 @@ Under `/api/v1`. Auth endpoints and `POST /users` are specified in the teacher P
 | `GET /sources` | List sources and status (`pending`/`ingesting`/`ready`/`failed`); `error` text is visible to admins only | any role |
 | `DELETE /sources/{id}` | Remove a source and its chunks | admin |
 | `POST /samples` | Add up to 50 sample questions (task statement code or domain id; all-or-nothing) | admin |
+| `GET /exams` | The caller's 100 most recent exams, newest first (expired ones are finalized first) | student |
 | `POST /exams` | Body: `mode`, `domains` (ids 1–4), `question_count` → 202 | student |
 | `GET /exams/{id}` | Status (`generating`/`ready`/`in_progress`/`finished`/`failed`) and questions once started | student + owner |
 | `POST /exams/{id}/start` | Start the timer | student + owner |

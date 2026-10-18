@@ -11,6 +11,12 @@ def test_health():
     assert response.json() == {"status": "ok"}
 
 
+def test_health_is_also_reachable_under_the_api_prefix():
+    response = client.get("/api/v1/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+
+
 def test_blank_anthropic_key_counts_as_unset(monkeypatch):
     from app.config import Settings
 

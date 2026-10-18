@@ -8,6 +8,9 @@ describe("toApiError", () => {
     expect(toApiError(422, { detail: [{ loc: ["body", "mcq_count"], msg: "must be at least 0" }] }).message).toBe(
       "mcq_count: must be at least 0",
     );
+    expect(
+      toApiError(422, { detail: [{ loc: ["body", "url"], msg: "Value error, Host 'x.com' is not allowed" }] }).message,
+    ).toBe("url: Host 'x.com' is not allowed");
     const coded = toApiError(409, { detail: { code: "JOB_IN_PROGRESS", message: "A generation is already running" } });
     expect(coded.message).toBe("A generation is already running");
     expect(coded.code).toBe("JOB_IN_PROGRESS");

@@ -2,7 +2,7 @@
 
 An exam generator for teachers. Teachers upload PDFs; the API generates multiple-choice and true/false questions with answers, explanations and citations (file, page, line), verifies them automatically, and lets teachers save question sets and download printable PDFs. A smaller student module (timed AWS SAA-C03 practice exams) is kept.
 
-This is a monorepo with a Python API and a React web app for teachers.
+This is a monorepo with a Python API and a React web app. The web app covers every endpoint, shown by role: teachers (documents, generation, question sets), students (practice sessions and timed exams, results, stats) and admins (users, samples, sources).
 
 ## Layout
 
@@ -31,7 +31,7 @@ just api-dev                      # http://127.0.0.1:8000/docs
 
 # in a second terminal
 just js-install                   # JS dependencies
-just web-dev                      # http://localhost:5173  (sign in as dave / teacher-pass)
+just web-dev                      # http://localhost:5173  (sign in as dave / teacher-pass, bob / builder, or alice / wonderland)
 ```
 
 The web app talks to the API through the Vite dev proxy, so there is no CORS to configure. After changing an API endpoint or schema, run `just gen-client` and commit the regenerated `packages/api-client` files; CI fails if they are stale.

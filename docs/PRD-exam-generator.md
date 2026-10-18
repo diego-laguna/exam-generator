@@ -21,7 +21,7 @@ A REST API for teachers. A teacher uploads PDFs (lesson notes, textbook chapters
 - G6: Be deployable on AWS (container, RDS PostgreSQL + pgvector, S3, Secrets Manager, ECS Fargate).
 
 ### Non-goals (POC)
-- A student-facing UI (the web app is for teachers).
+- Visual polish and a design system: the web app favors plain, accessible screens over styling.
 - OCR for scanned PDFs (rejected with a clear error), non-PDF formats, images and tables as sources.
 - Editing a question's text (delete and regenerate instead).
 - Letting students take a teacher's set online (the legacy student module uses its own fixture bank).
@@ -84,7 +84,7 @@ All under `/api/v1`, teacher-only unless stated. Anything owned by another teach
 | `DELETE /question-sets/{id}` | Delete the set (questions stay) |
 | `GET /question-sets/{id}/pdf?version=student\|teacher` | Printable PDF. `student`: questions and name/date lines. `teacher`: answers, explanations, page/line sources |
 
-Shared endpoints (any role unless noted): `POST /auth/login` and `POST /auth/refresh` (public), `POST /auth/logout`, `POST /users` (admin; sets the role), and the unversioned public `GET /health`. Behavior is in section 8.
+Shared endpoints (any role unless noted): `POST /auth/login` and `POST /auth/refresh` (public), `POST /auth/logout`, `POST /users` (admin; sets the role), and the public `GET /health` (also served as `GET /api/v1/health` for browser apps that only reach `/api/*`). Behavior is in section 8.
 
 ## 7. Data model (new tables)
 
@@ -152,10 +152,14 @@ Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, f
 
 ## 13. Web app
 
-`apps/web` is a React + TypeScript single-page app for the `teacher` role, built with Vite, React Router and TanStack Query. It calls the API through a typed client generated from the OpenAPI schema (`packages/api-client`); CI fails if the committed schema or types are stale.
+`apps/web` is a React + TypeScript single-page app, built with Vite, React Router and TanStack Query, that reaches every API endpoint the signed-in role is allowed to call. It calls the API through a typed client generated from the OpenAPI schema (`packages/api-client`); CI fails if the committed schema or types are stale.
 
-- **Screens:** sign in; documents (upload, processing status, delete); generate (documents, counts, optional focus, job progress); questions (review with answer, explanation and page/line sources; filter; select; delete); question sets (list, rename, remove questions, delete, download the student PDF or the answer key).
-- **Session:** the access token is kept in memory only. After a reload, or on a 401, the app calls `/auth/refresh` and the browser sends the httpOnly refresh cookie; concurrent 401s share one refresh because refresh tokens are single-use. Non-teacher accounts see a "Teachers only" page; the server still enforces roles.
+- **Screens by role** (the navigation shows only what the role can use; other URLs show a short "not available" page):
+  - *teacher:* documents (upload, processing status, delete); generate (documents, counts, optional focus, job progress); questions (review with answer, explanation and page/line sources; filter; select; delete); question sets (list, rename, remove questions, delete, download the student PDF or the answer key).
+  - *student:* exams (create a practice session or a timed exam, list past sessions); the exam page (start, answer with immediate feedback in practice mode, countdown in exam mode, submit); results (your answer vs the correct one, explanations; locked until the exam is submitted or expires).
+  - *admin:* users (create accounts with a role); samples (one at a time or a JSON batch); sources (add and delete).
+  - *everyone:* sign in and out, sources (read-only for non-admins), my stats, and an API status indicator.
+- **Session:** the access token is kept in memory only. After a reload, or on a 401, the app calls `/auth/refresh` and the browser sends the httpOnly refresh cookie; concurrent 401s share one refresh because refresh tokens are single-use. The server still enforces roles on every call.
 - **Development:** the Vite dev server proxies `/api` to the API so the browser sees one origin (no CORS). In production the SPA and `/api/*` should also share an origin (for example S3 + CloudFront in front of the ALB), which keeps the `SameSite=Strict` cookie working. Hosting is not part of the Terraform yet.
 - **Tests:** Vitest + Testing Library with `fetch` stubbed; the full flow was also exercised once in a real browser.
 

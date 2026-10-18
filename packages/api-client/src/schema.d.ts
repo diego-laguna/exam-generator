@@ -131,7 +131,11 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Exams
+         * @description The caller's 100 most recent exams, newest first.
+         */
+        get: operations["list_exams_api_v1_exams_get"];
         put?: never;
         /** Create Exam */
         post: operations["create_exam_api_v1_exams_post"];
@@ -412,6 +416,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Health */
+        get: operations["health_api_v1_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -631,6 +652,30 @@ export interface components {
          * @enum {string}
          */
         ExamStatus: "generating" | "ready" | "in_progress" | "finished" | "failed";
+        /** ExamSummary */
+        ExamSummary: {
+            /** Id */
+            id: number;
+            mode: components["schemas"]["ExamMode"];
+            status: components["schemas"]["ExamStatus"];
+            /** Question Count */
+            question_count: number;
+            /** Requested Question Count */
+            requested_question_count: number;
+            /** Duration Minutes */
+            duration_minutes: number | null;
+            /** Started At */
+            started_at: string | null;
+            /** Ends At */
+            ends_at: string | null;
+            /** Score */
+            score: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** GenerationCreate */
         GenerationCreate: {
             /** Document Ids */
@@ -1171,6 +1216,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_exams_api_v1_exams_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSummary"][];
                 };
             };
         };
@@ -1856,6 +1921,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    health_api_v1_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

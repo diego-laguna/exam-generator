@@ -90,3 +90,29 @@ button.danger { background: none; color: var(--danger); border-color: var(--dang
 .sr-only {
   position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
+h2 { font-size: 1.15rem; margin: 0.25rem 0 0.5rem; }
+textarea {
+  font: inherit; padding: 0.5rem 0.7rem; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); width: 100%;
+}
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th, td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; }
+.footer { max-width: 56rem; margin: 0 auto; padding: 1rem 16px 2rem; font-size: 0.8rem; color: var(--muted); }
+.health.ok::before, .health.down::before {
+  content: ""; display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 50%; margin-right: 0.4rem;
+}
+.health.ok::before { background: var(--ok); }
+.health.down::before { background: var(--danger); }
+.ok-text { color: var(--ok); font-weight: 600; }
+.timer { font-size: 1.1rem; margin: 0.5rem 0; }
+.timer.warn strong { color: var(--danger); }
+.question-take { margin: 0.75rem 0; }
+.question-take h3 { margin-top: 0; }
+.option { padding: 0.3rem 0.25rem; }
+.feedback { margin-top: 0.6rem; padding: 0.5rem 0.7rem; border-radius: 6px; }
+.feedback.right { background: var(--ok-bg); color: var(--ok); }
+.feedback.wrong { border: 1px solid var(--danger); color: var(--danger); }
+.sticky-bottom { position: sticky; bottom: 0; border-color: var(--accent); }
+.options li.wrong-pick { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+.tag { font-size: 0.8rem; font-style: italic; }
