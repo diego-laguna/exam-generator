@@ -22,6 +22,7 @@ ENDPOINTS = [
     ("GET", "/sources", ANY),
     ("DELETE", "/sources/1", {ADMIN}),
     ("POST", "/samples", {ADMIN}),
+    ("GET", "/exams", {STUDENT}),
     ("POST", "/exams", {STUDENT}),
     ("GET", "/exams/1", {STUDENT}),
     ("POST", "/exams/1/start", {STUDENT}),
@@ -85,7 +86,7 @@ def test_public_endpoints_need_no_token():
 def test_all_v1_routes_are_covered_by_the_matrix():
     """Fails when a new endpoint is added without an entry in ENDPOINTS."""
     covered = {(m, P + p) for m, p, _ in ENDPOINTS}
-    public = {"/health", f"{P}/auth/login", f"{P}/auth/refresh"}
+    public = {"/health", f"{P}/health", f"{P}/auth/login", f"{P}/auth/refresh"}
     routes = set()
     for r in app.routes:
         path = getattr(r, "path", "")

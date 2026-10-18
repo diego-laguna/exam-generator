@@ -12,6 +12,10 @@ from app.users import router as users_router
 
 app = FastAPI(title="Exam-Generator API")
 
+def health():
+    return {"status": "ok"}
+
+
 api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth_router)
 api_v1.include_router(users_router)
@@ -22,9 +26,9 @@ api_v1.include_router(documents_router)
 api_v1.include_router(generations_router)
 api_v1.include_router(questions_router)
 api_v1.include_router(question_sets_router)
+# Also under /api/v1, so a browser app that only reaches /api/* (one origin, as behind a proxy)
+# can show whether the API is up. The unversioned /health below is for load balancers and probes.
+api_v1.get("/health", tags=["health"])(health)
 app.include_router(api_v1)
 
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+app.get("/health")(health)

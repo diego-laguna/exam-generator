@@ -347,6 +347,35 @@
       }
     },
     "/api/v1/exams": {
+      "get": {
+        "tags": [
+          "exams"
+        ],
+        "summary": "List Exams",
+        "description": "The caller's 100 most recent exams, newest first.",
+        "operationId": "list_exams_api_v1_exams_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ExamSummary"
+                  },
+                  "type": "array",
+                  "title": "Response List Exams Api V1 Exams Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
       "post": {
         "tags": [
           "exams"
@@ -1407,6 +1436,25 @@
         }
       }
     },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -2016,6 +2064,93 @@
           "failed"
         ],
         "title": "ExamStatus"
+      },
+      "ExamSummary": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExamMode"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExamStatus"
+          },
+          "question_count": {
+            "type": "integer",
+            "title": "Question Count"
+          },
+          "requested_question_count": {
+            "type": "integer",
+            "title": "Requested Question Count"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ends_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ends At"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "mode",
+          "status",
+          "question_count",
+          "requested_question_count",
+          "duration_minutes",
+          "started_at",
+          "ends_at",
+          "score",
+          "created_at"
+        ],
+        "title": "ExamSummary"
       },
       "GenerationCreate": {
         "properties": {

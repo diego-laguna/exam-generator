@@ -257,6 +257,31 @@ def test_submit_after_expiry_rejected_but_scored(student, clock):
     assert client.get(f"{P}/exams/{exam['id']}", headers=student).json()["status"] == "finished"
 
 
+# --- listing ----------------------------------------------------------------------------------
+
+
+def test_list_exams_is_newest_first_and_private(student, clock):
+    assert client.get(f"{P}/exams", headers=student).json() == []
+    first = make_exam(student, mode="practice", question_count=2)
+    second = make_exam(student, question_count=3)
+    listed = client.get(f"{P}/exams", headers=student).json()
+    assert [e["id"] for e in listed] == [second["id"], first["id"]]
+    assert listed[0]["mode"] == "exam" and listed[0]["question_count"] == 3 and listed[0]["score"] is None
+    assert "questions" not in listed[0]
+
+    other = _login("carol", "christmas")
+    assert first["id"] not in [e["id"] for e in client.get(f"{P}/exams", headers=other).json()]
+    assert client.get(f"{P}/exams", headers=_login("alice", "wonderland")).status_code == 403
+
+
+def test_listing_finalizes_expired_exams(student, clock):
+    exam = make_exam(student, question_count=3)
+    start(student, exam["id"])
+    clock.advance(minutes=10)
+    [listed] = client.get(f"{P}/exams", headers=student).json()
+    assert listed["status"] == "finished" and listed["score"] == 0
+
+
 # --- practice mode ------------------------------------------------------------------------
 
 def test_practice_answer_gives_immediate_feedback(student):

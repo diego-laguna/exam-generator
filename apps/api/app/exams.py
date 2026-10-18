@@ -12,7 +12,7 @@ from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession, StudentOnly
 from app.exam_deps import ActiveExam, OwnedExam, UnlockedExam, error
 from app.exam_service import create_exam as create_exam_record
-from app.exam_service import finalize_exam
+from app.exam_service import expire_if_needed, finalize_exam
 from app.models import (
     Answer,
     Domain,
@@ -111,6 +111,45 @@ def create_exam(body: ExamCreate, user: CurrentUser, db: DbSession):
     )
     exam = create_exam_record(db, user, body.mode, requested, body.domains)
     return exam_out(db, exam)
+
+
+class ExamSummary(BaseModel):
+    id: int
+    mode: ExamMode
+    status: ExamStatus
+    question_count: int
+    requested_question_count: int
+    duration_minutes: int | None
+    started_at: datetime | None
+    ends_at: datetime | None
+    score: int | None
+    created_at: datetime
+
+
+@router.get("/exams", response_model=list[ExamSummary])
+def list_exams(user: CurrentUser, db: DbSession, clock: ClockDep):
+    """The caller's 100 most recent exams, newest first."""
+    exams = db.scalars(
+        select(Exam).where(Exam.user_id == user.id).order_by(Exam.id.desc()).limit(100)
+    ).all()
+    now = clock()
+    for exam in exams:
+        expire_if_needed(db, exam, now)  # an exam past its deadline is shown as finished
+    return [
+        ExamSummary(
+            id=e.id,
+            mode=e.mode,
+            status=e.status,
+            question_count=e.question_count,
+            requested_question_count=e.requested_question_count,
+            duration_minutes=e.duration_minutes,
+            started_at=e.started_at,
+            ends_at=e.ends_at,
+            score=e.score if e.status == ExamStatus.finished else None,
+            created_at=e.created_at,
+        )
+        for e in exams
+    ]
 
 
 @router.get("/exams/{exam_id}", response_model=ExamOut)

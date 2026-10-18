@@ -15,7 +15,9 @@ export function toApiError(status: number, body: unknown): ApiError {
   if (Array.isArray(detail)) {
     const first = detail[0] as { msg?: string; loc?: unknown[] } | undefined;
     const field = first?.loc?.filter((p) => p !== "body").join(".");
-    return new ApiError(first?.msg ? `${field ? `${field}: ` : ""}${first.msg}` : "Invalid request", status);
+    // Pydantic prefixes messages raised by our validators with "Value error, ".
+    const message = first?.msg?.replace(/^Value error, /, "");
+    return new ApiError(message ? `${field ? `${field}: ` : ""}${message}` : "Invalid request", status);
   }
   if (detail && typeof detail === "object") {
     const { code, message } = detail as { code?: string; message?: string };
