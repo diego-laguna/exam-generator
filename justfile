@@ -43,4 +43,18 @@ api-image:
 
 # --- everything ---------------------------------------------------------------
 # What CI runs for the API
-check: api-check api-test
+check: api-check api-test js-check
+
+# --- JavaScript workspace (pnpm) ----------------------------------------------
+# Install JS dependencies
+js-install:
+    pnpm install
+
+# Export the API's OpenAPI schema and regenerate the TypeScript client types
+gen-client:
+    cd apps/api && uv run python -m scripts.export_openapi
+    pnpm --filter @learn-assistant/api-client generate
+
+# Type-check all JS packages
+js-check:
+    pnpm typecheck

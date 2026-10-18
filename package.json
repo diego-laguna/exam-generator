@@ -1,0 +1,11 @@
+{
+  "name": "learn-assistant",
+  "private": true,
+  "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck"
+  }
+}
