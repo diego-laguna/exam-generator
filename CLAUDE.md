@@ -1,5 +1,7 @@
 # learn-assistant
 
+Monorepo: `apps/api` (Python/FastAPI, everything below unless stated), `infra/terraform` (AWS), `docs/` (PRDs, DEPLOY.md), `compose.yaml` (Postgres). A React app (`apps/web`) and a generated API client (`packages/api-client`) are planned; JS tooling will be pnpm workspaces, not Nx. Run Python commands from `apps/api` (the `.env` file is read from the working directory); from the repo root, `just` recipes wrap them (`just check`, `just api-dev`, `just db-up`, ...). Docker: build context is `apps/api`.
+
 FastAPI REST API: teachers upload PDFs, the app generates validated multiple-choice/true-false questions that cite file, page and line, teachers save question sets and download printable PDFs. A legacy student module (timed AWS SAA-C03 exams from a fixture bank) is kept.
 Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-generator.md` (current), `docs/PRD-aws-saa-study-assistant.md` (student module spec). AWS deployment: `docs/DEPLOY.md`, Terraform in `infra/terraform/`.
 
@@ -12,10 +14,10 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 - Ingestion: httpx2 fetch + BeautifulSoup + heading-aware chunking (`app/fetching.py`, `app/chunking.py`, `app/ingestion.py`)
 - Teacher PDFs: pdfminer.six (numbered lines, `app/pdf_text.py`), storage in S3 or a local dir (`app/storage.py`), ReportLab export (`app/pdf_export.py`)
 - LLM: Anthropic API behind the `Llm` protocol (`app/llm.py`, forced tool call -> Pydantic); generation pipeline in `app/question_gen.py`
-- Deploy: `Dockerfile`, Terraform (ECS Fargate, RDS pg17, S3, Secrets Manager, ALB), CI in `.github/workflows/ci.yml`
+- Deploy: `apps/api/Dockerfile`, Terraform (ECS Fargate, RDS pg17, S3, Secrets Manager, ALB), CI in `.github/workflows/ci.yml`
 
 ## Commands
-- DB: `docker compose up -d --wait`
+- DB: `just db-up` (or `docker compose up -d --wait` from the repo root)
 - Migrate: `uv run alembic upgrade head` (new: `uv run alembic revision --autogenerate -m "..."`)
 - Seed exam reference data + fixture questions: `uv run python -m scripts.seed_reference` (required after migrating)
 - Seed sample users: `uv run python -m scripts.seed` (alice=admin, bob/carol=students, dave=teacher)
@@ -24,7 +26,7 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 - Type check: `uv run pyright` (standard mode; must stay at 0 errors)
 - Test: `uv run pytest` (needs the DB up; uses its own `learn_assistant_test` database)
 - Config: copy `.env.example` to `.env`. Set `ANTHROPIC_API_KEY` yourself in `.env` (never paste it into chat); without it `POST /generations` returns 503.
-- Docker image: `docker build -t learn-assistant:dev .`; Terraform check: `docker run --rm -v "$PWD/infra/terraform:/tf" -w /tf hashicorp/terraform:1.9 validate`
+- Docker image: `just api-image`; Terraform check (repo root): `docker run --rm -v "$PWD/infra/terraform:/tf" -w /tf hashicorp/terraform:1.9 validate`
 
 ## Rules that always apply
 - Code is fully type-annotated and must pass pyright; runtime validation is Pydantic (requests, settings, LLM JSON).

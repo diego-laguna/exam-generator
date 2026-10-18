@@ -9,8 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  api:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
     services:
       db:
         image: pgvector/pgvector:pg17

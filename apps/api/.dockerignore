@@ -9,6 +9,3 @@ __pycache__
 *.pyc
 .pytest_cache
 tests
-docs
-infra
-.github
