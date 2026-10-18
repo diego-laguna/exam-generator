@@ -100,7 +100,7 @@ Shared endpoints (any role unless noted): `POST /auth/login` and `POST /auth/ref
 ### Authentication
 - Passwords are hashed with argon2.
 - Access tokens are JWTs that expire after 15 minutes. Claims: `sub`, `role`, `exp`, `iat`, `jti`.
-- Refresh tokens are opaque, stored as a hash, valid 7 days, single-use and rotated on every refresh.
+- Refresh tokens are opaque, stored as a hash, valid 7 days, single-use and rotated on every refresh. They are returned in the JSON body (API clients) and also set as an `httpOnly`, `Secure`, `SameSite=Strict` cookie scoped to `/api/v1/auth` (browsers), so page scripts never hold them. `/auth/refresh` and `/auth/logout` accept the token from the body or, if absent, the cookie; the body wins.
 - **Decision:** refresh tokens are deleted (not flagged) on use, on logout and on password change (`revoke_all_refresh_tokens`; there is no password-change endpoint yet). Logout also denylists the access token's `jti` until it expires, so logout takes effect immediately.
 - Admins create users; there is no public registration. Login takes the same time for unknown and known users (dummy hash verification).
 

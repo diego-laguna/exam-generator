@@ -1,13 +1,14 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.dependencies import DbSession, get_current_claims
 from app.models import RefreshToken, RevokedToken, User
 from app.security import (
@@ -31,6 +32,41 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+REFRESH_COOKIE = "refresh_token"
+COOKIE_PATH = "/api/v1/auth"  # the browser sends it only to the auth endpoints
+
+
+def _set_refresh_cookie(response: Response, raw: str) -> None:
+    """Browser clients keep the refresh token in an httpOnly cookie, out of reach of page scripts.
+    SameSite=Strict plus the narrow path keeps other sites from triggering a refresh or logout."""
+    settings = get_settings()
+    response.set_cookie(
+        REFRESH_COOKIE,
+        raw,
+        max_age=settings.refresh_token_expire_days * 86400,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite="strict",
+        path=COOKIE_PATH,
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    settings = get_settings()
+    response.delete_cookie(
+        REFRESH_COOKIE,
+        path=COOKIE_PATH,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite="strict",
+    )
+
+
+def _presented_refresh_token(request: Request, body: RefreshRequest | None) -> str | None:
+    """The request body wins (API clients); browsers send the cookie."""
+    return body.refresh_token if body is not None else request.cookies.get(REFRESH_COOKIE)
+
+
 def _issue_tokens(db: Session, user: User) -> TokenPair:
     raw, hashed, expires_at = new_refresh_token()
     db.add(RefreshToken(user_id=user.id, token_hash=hashed, expires_at=expires_at))
@@ -51,7 +87,9 @@ def _invalid_credentials() -> HTTPException:
 
 
 @router.post("/login", response_model=TokenPair)
-def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession):
+def login(
+    form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession, response: Response
+):
     user = db.scalar(select(User).where(User.username == form.username))
     # Always run a hash verification so timing doesn't reveal valid usernames.
     password_ok = password_hash.verify(
@@ -66,17 +104,25 @@ def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession):
     )
     tokens = _issue_tokens(db, user)
     db.commit()
+    _set_refresh_cookie(response, tokens.refresh_token)
     return tokens
 
 
 @router.post("/refresh", response_model=TokenPair)
-def refresh(body: RefreshRequest, db: DbSession):
+def refresh(
+    request: Request, response: Response, db: DbSession, body: RefreshRequest | None = None
+):
+    presented = _presented_refresh_token(request, body)
     # Single-use: the DELETE consumes the token atomically, so a replay finds nothing.
-    row = db.execute(
-        delete(RefreshToken)
-        .where(RefreshToken.token_hash == hash_refresh_token(body.refresh_token))
-        .returning(RefreshToken.user_id, RefreshToken.expires_at)
-    ).one_or_none()
+    row = (
+        db.execute(
+            delete(RefreshToken)
+            .where(RefreshToken.token_hash == hash_refresh_token(presented))
+            .returning(RefreshToken.user_id, RefreshToken.expires_at)
+        ).one_or_none()
+        if presented
+        else None
+    )
     user = db.get(User, row.user_id) if row else None
     if not (row and row.expires_at > datetime.now(UTC) and user and user.is_active):
         db.commit()  # persist the deletion of an expired/consumed token
@@ -87,20 +133,23 @@ def refresh(body: RefreshRequest, db: DbSession):
         )
     tokens = _issue_tokens(db, user)
     db.commit()
+    _set_refresh_cookie(response, tokens.refresh_token)
     return tokens
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
+    request: Request,
     claims: Annotated[dict, Depends(get_current_claims)],
     db: DbSession,
     body: RefreshRequest | None = None,
 ):
-    if body is not None:
+    presented = _presented_refresh_token(request, body)
+    if presented is not None:
         # Scoped to the caller so one user can't end another's session.
         db.execute(
             delete(RefreshToken).where(
-                RefreshToken.token_hash == hash_refresh_token(body.refresh_token),
+                RefreshToken.token_hash == hash_refresh_token(presented),
                 RefreshToken.user_id == int(claims["sub"]),
             )
         )
@@ -112,4 +161,6 @@ def logout(
         .on_conflict_do_nothing()
     )
     db.commit()
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    response = Response(status_code=status.HTTP_204_NO_CONTENT)
+    _clear_refresh_cookie(response)
+    return response

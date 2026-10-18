@@ -47,6 +47,7 @@ Teacher decisions: roles `teacher`/`admin`/`student`; question types `mcq` and `
 Decisions beyond the PRD text (student module):
 - Routes live under `/api/v1`; `/health` stays unversioned.
 - Access token 15 min; refresh tokens are opaque, hashed, single-use (rotated), 7 days, deleted (not flagged) on use/logout.
+- Browsers get the refresh token as an httpOnly `Secure` `SameSite=Strict` cookie (path `/api/v1/auth`, `REFRESH_COOKIE_SECURE=false` only for plain-HTTP deployments); `/auth/refresh` and `/auth/logout` read the body first, then the cookie.
 - Logout also denylists the access token JTI (`revoked_tokens`, purged after expiry).
 - Password change must call `revoke_all_refresh_tokens` (no password-change endpoint yet).
 - Exam mode time limit = 2 min per question (65 questions -> 130 min), set at `/start` on the server clock.

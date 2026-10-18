@@ -174,7 +174,7 @@ Using `"mode": "exam"` instead gives a timed exam: 2 minutes per question (130 m
 | `student` | Everything under `/exams` (you can only see your own exams) |
 | `admin` | `POST /users` (including teachers), `POST`/`DELETE /sources`, `POST /samples` |
 
-Access tokens last 15 minutes. Refresh them with `POST /auth/refresh`, which also rotates the refresh token. `POST /auth/logout` revokes the current access token immediately.
+Access tokens last 15 minutes. Refresh them with `POST /auth/refresh`, which also rotates the refresh token. Browsers also receive it as an httpOnly cookie, and `/auth/refresh` and `/auth/logout` fall back to that cookie when no body is sent. `POST /auth/logout` revokes the current access token immediately.
 
 ### Add documentation to the student module's knowledge base
 
@@ -251,6 +251,7 @@ Settings come from environment variables or a `.env` file (see `.env.example`).
 | Variable | Default | Purpose |
 |---|---|---|
 | `JWT_SECRET_KEY` | required | Signs access tokens. Keep it secret. |
+| `REFRESH_COOKIE_SECURE` | `true` | `Secure` flag of the refresh cookie. Set `false` only for plain-HTTP deployments (a localhost dev server works with `true`). |
 | `ANTHROPIC_API_KEY` | unset | Enables generation. Blank counts as unset. Never commit it. |
 | `LLM_GENERATION_MODEL` / `LLM_VALIDATION_MODEL` | `claude-sonnet-5-5` | Models for drafting and for blind validation |
 | `DATABASE_URL` | local compose database | SQLAlchemy URL for PostgreSQL |
