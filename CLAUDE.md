@@ -1,4 +1,4 @@
-# learn-assistant
+# Exam-Generator
 
 Monorepo: `apps/api` (Python/FastAPI, everything below unless stated), `infra/terraform` (AWS), `docs/` (PRDs, DEPLOY.md), `compose.yaml` (Postgres). `apps/web` is the React + TypeScript teacher app (Vite, React Router, TanStack Query, Vitest) and `packages/api-client` the OpenAPI schema + generated client; JS tooling is pnpm workspaces, not Nx. Run Python commands from `apps/api` (the `.env` file is read from the working directory); from the repo root, `just` recipes wrap them (`just check`, `just api-dev`, `just db-up`, ...). Docker: build context is `apps/api`. After changing an endpoint or Pydantic model run `just gen-client` and commit `packages/api-client` (CI fails on drift); name response models uniquely (the client types use the class names). Web rules: the access token lives only in memory, the refresh token is the httpOnly cookie (never read it from JS), the UI only hides screens by role (the API enforces), tests stub `fetch` (`apps/web/src/test-utils.ts`) and never hit the network.
 

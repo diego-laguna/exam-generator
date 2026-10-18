@@ -10,7 +10,7 @@ importers:
 
   apps/web:
     dependencies:
-      '@learn-assistant/api-client':
+      '@exam-generator/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
       '@tanstack/react-query':

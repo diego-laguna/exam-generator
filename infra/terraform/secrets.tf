@@ -15,7 +15,7 @@ resource "aws_secretsmanager_secret_version" "jwt" {
 
 # Only the container is created here. Set the value out of band so the key never enters Terraform
 # state or this repository:
-#   aws secretsmanager put-secret-value --secret-id learn-assistant/anthropic-api-key --secret-string "$KEY"
+#   aws secretsmanager put-secret-value --secret-id exam-generator/anthropic-api-key --secret-string "$KEY"
 resource "aws_secretsmanager_secret" "anthropic" {
   name                    = "${var.name}/anthropic-api-key"
   recovery_window_in_days = 7
