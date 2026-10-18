@@ -63,7 +63,7 @@ jobs:
         working-directory: apps/api
       - run: |
           uv run python -m scripts.export_openapi
-          pnpm --filter @learn-assistant/api-client generate
+          pnpm --filter @exam-generator/api-client generate
           git diff --exit-code -- ../../packages/api-client || {
             echo "::error::API contract changed. Run 'just gen-client' and commit the result."; exit 1; }
         working-directory: apps/api

@@ -7,7 +7,7 @@ export function Layout() {
   return (
     <>
       <header className="topbar">
-        <strong className="brand">learn-assistant</strong>
+        <strong className="brand">Exam-Generator</strong>
         <nav aria-label="Main">
           <NavLink to="/documents">Documents</NavLink>
           <NavLink to="/generate">Generate</NavLink>

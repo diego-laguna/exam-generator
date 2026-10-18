@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@learn-assistant/api-client": "workspace:*",
+    "@exam-generator/api-client": "workspace:*",
     "@tanstack/react-query": "^5.104.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

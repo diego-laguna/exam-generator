@@ -6,7 +6,7 @@ variable "region" {
 variable "name" {
   description = "Prefix for resource names."
   type        = string
-  default     = "learn-assistant"
+  default     = "exam-generator"
 }
 
 variable "vpc_cidr" {

@@ -1,4 +1,4 @@
-import { createApiClient } from "@learn-assistant/api-client";
+import { createApiClient } from "@exam-generator/api-client";
 
 /**
  * Session handling. The access token lives only in memory; the refresh token is an httpOnly cookie

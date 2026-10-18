@@ -17,9 +17,9 @@ Internet → ALB (public subnets) → ECS Fargate tasks (private subnets) → RD
 | Migrations | One-off ECS task (`migrate`): `alembic upgrade head` + reference data |
 | Database | RDS PostgreSQL 17, encrypted, 7-day backups, master password managed (and rotatable) by RDS in Secrets Manager |
 | PDFs | S3 bucket: public access blocked, SSE, TLS-only policy; task role limited to `documents/*` |
-| Secrets | `learn-assistant/jwt-secret-key` (generated), `learn-assistant/anthropic-api-key` (you set it), RDS secret |
+| Secrets | `exam-generator/jwt-secret-key` (generated), `exam-generator/anthropic-api-key` (you set it), RDS secret |
 | Network | VPC, 2 AZs, ALB in public subnets, tasks and DB in private subnets, S3 gateway endpoint, one NAT |
-| Logs | CloudWatch `/ecs/learn-assistant` |
+| Logs | CloudWatch `/ecs/exam-generator` |
 
 ## Prerequisites
 

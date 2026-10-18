@@ -43,7 +43,7 @@ def fetch_html(url: str, transport: httpx2.BaseTransport | None = None) -> str:
     """GETs an allowlisted page. Redirects are followed manually and re-validated each hop."""
     settings = get_settings()
     current = validate_source_url(url)
-    headers = {"User-Agent": "learn-assistant-ingestion/0.1", "Accept": "text/html"}
+    headers = {"User-Agent": "exam-generator-ingestion/0.1", "Accept": "text/html"}
     try:
         with httpx2.Client(
             transport=transport,

@@ -10,7 +10,7 @@ from app.sources import router as sources_router
 from app.stats import router as stats_router
 from app.users import router as users_router
 
-app = FastAPI(title="learn-assistant")
+app = FastAPI(title="Exam-Generator API")
 
 api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(auth_router)

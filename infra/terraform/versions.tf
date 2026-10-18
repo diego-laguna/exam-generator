@@ -14,7 +14,7 @@ terraform {
 
   # For anything beyond a POC, keep state in an encrypted S3 bucket (the generated JWT key is
   # stored in state):
-  # backend "s3" { bucket = "..." key = "learn-assistant/terraform.tfstate" region = "..." encrypt = true }
+  # backend "s3" { bucket = "..." key = "exam-generator/terraform.tfstate" region = "..." encrypt = true }
 }
 
 provider "aws" {

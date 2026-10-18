@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import type { Schema } from "@learn-assistant/api-client";
+import type { Schema } from "@exam-generator/api-client";
 
 export type Question = Schema["BankQuestionOut"];
 export type Citation = Schema["CitationOut"];

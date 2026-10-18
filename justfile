@@ -39,7 +39,7 @@ api-check:
 
 # Build the production image
 api-image:
-    docker build -t learn-assistant:dev apps/api
+    docker build -t exam-generator:dev apps/api
 
 # --- everything ---------------------------------------------------------------
 # What CI runs for the API
@@ -53,7 +53,7 @@ js-install:
 # Export the API's OpenAPI schema and regenerate the TypeScript client types
 gen-client:
     cd apps/api && uv run python -m scripts.export_openapi
-    pnpm --filter @learn-assistant/api-client generate
+    pnpm --filter @exam-generator/api-client generate
 
 # Type-check all JS packages and run the web tests
 js-check:
