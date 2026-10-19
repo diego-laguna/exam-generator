@@ -98,7 +98,17 @@ def _set_items(db: Session, set_id: int, question_ids: list[int]) -> None:
     )
 
 
-@router.post("", response_model=QuestionSetOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=QuestionSetOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a question set",
+    description=(
+        "Teacher only. Saves a titled, ordered selection of the caller's own questions for reuse. Ids must be unique and owned by the caller."
+        "\n\n"
+        "**Use case:** Dave picks 10 reviewed questions and saves `{\"title\": \"Unit 3 quiz\", \"question_ids\": [41, 42, 45]}`."
+    ),
+)
 def create_question_set(body: QuestionSetIn, user: CurrentUser, db: DbSession):
     _check_owned(db, user.id, body.question_ids)
     question_set = QuestionSet(owner_id=user.id, title=body.title)
@@ -110,7 +120,16 @@ def create_question_set(body: QuestionSetIn, user: CurrentUser, db: DbSession):
     return _out(db, question_set)
 
 
-@router.get("", response_model=list[QuestionSetSummary])
+@router.get(
+    "",
+    response_model=list[QuestionSetSummary],
+    summary="List my question sets",
+    description=(
+        "Teacher only. The caller's saved sets with title and question count."
+        "\n\n"
+        "**Use case:** Next semester Dave opens the list and finds last year's \"Unit 3 quiz\" to reuse."
+    ),
+)
 def list_question_sets(user: CurrentUser, db: DbSession):
     rows = db.execute(
         select(QuestionSet, func.count(QuestionSetItem.question_id))
@@ -127,12 +146,30 @@ def list_question_sets(user: CurrentUser, db: DbSession):
     ]
 
 
-@router.get("/{set_id}", response_model=QuestionSetOut)
+@router.get(
+    "/{set_id}",
+    response_model=QuestionSetOut,
+    summary="Get one question set",
+    description=(
+        "Teacher only. A set with its questions in order, including answers and citations. Another teacher's set answers 404."
+        "\n\n"
+        "**Use case:** Dave opens the set to check the order before printing."
+    ),
+)
 def get_question_set(question_set: OwnedSet, db: DbSession):
     return _out(db, question_set)
 
 
-@router.put("/{set_id}", response_model=QuestionSetOut)
+@router.put(
+    "/{set_id}",
+    response_model=QuestionSetOut,
+    summary="Replace a question set",
+    description=(
+        "Teacher only. Replaces the title and the full ordered list of questions of an existing set."
+        "\n\n"
+        "**Use case:** Dave swaps two weak questions for better ones and reorders the rest, keeping the same set and title."
+    ),
+)
 def replace_question_set(question_set: OwnedSet, body: QuestionSetIn, user: CurrentUser, db: DbSession):
     _check_owned(db, user.id, body.question_ids)
     question_set.title = body.title
@@ -142,7 +179,16 @@ def replace_question_set(question_set: OwnedSet, body: QuestionSetIn, user: Curr
     return _out(db, question_set)
 
 
-@router.delete("/{set_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{set_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a question set",
+    description=(
+        "Teacher only. Deletes the set only; the questions stay in the bank."
+        "\n\n"
+        "**Use case:** Dave removes an obsolete quiz without losing the questions he may reuse in another set."
+    ),
+)
 def delete_question_set(question_set: OwnedSet, db: DbSession):
     db.delete(question_set)
     db.commit()
@@ -153,6 +199,12 @@ def delete_question_set(question_set: OwnedSet, db: DbSession):
     "/{set_id}/pdf",
     response_class=Response,
     responses={200: {"content": {"application/pdf": {}}, "description": "Printable PDF"}},
+    summary="Download a printable PDF",
+    description=(
+        "Teacher only. Renders the set as a PDF. `version=student` (default) has the questions with name and date lines; `version=teacher` adds the correct answers, explanations and the cited source, page and lines. Responds 409 for an empty set."
+        "\n\n"
+        "**Use case:** Dave downloads `?version=student` to print for the class and keeps `?version=teacher` as his answer key."
+    ),
 )
 def download_pdf(
     question_set: OwnedSet,

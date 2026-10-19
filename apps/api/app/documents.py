@@ -93,7 +93,17 @@ async def _read_capped(file: UploadFile, limit: int) -> bytes:
     return bytes(data)
 
 
-@router.post("", response_model=DocumentOut, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "",
+    response_model=DocumentOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Upload a PDF",
+    description=(
+        "Teacher only. Uploads a PDF (multipart field `file`). The text is extracted with page and line numbers, split into chunks and embedded in the background. Returns 202; poll the document until its status is `ready` or `failed` (for example a scanned PDF with no text, or too many pages)."
+        "\n\n"
+        "**Use case:** Dave uploads `biology-chapter-3.pdf` and, when the status turns `ready`, uses it to generate questions."
+    ),
+)
 async def upload_document(
     file: UploadFile,
     user: CurrentUser,
@@ -132,7 +142,16 @@ async def upload_document(
     return _out(db, document)
 
 
-@router.get("", response_model=list[DocumentOut])
+@router.get(
+    "",
+    response_model=list[DocumentOut],
+    summary="List my documents",
+    description=(
+        "Teacher only. Lists the caller's own documents with status, page count and chunk count. A document stuck in processing for too long is reported as `failed`."
+        "\n\n"
+        "**Use case:** Dave opens the Documents screen to see which uploads finished."
+    ),
+)
 def list_documents(user: CurrentUser, db: DbSession, clock: ClockDep):
     documents = db.scalars(
         select(Document).where(Document.owner_id == user.id).order_by(Document.id)
@@ -142,12 +161,30 @@ def list_documents(user: CurrentUser, db: DbSession, clock: ClockDep):
     return [_out(db, d) for d in documents]
 
 
-@router.get("/{document_id}", response_model=DocumentOut)
+@router.get(
+    "/{document_id}",
+    response_model=DocumentOut,
+    summary="Get one document",
+    description=(
+        "Teacher only. Returns one of the caller's documents. Another teacher's document answers 404."
+        "\n\n"
+        "**Use case:** The app polls `GET /documents/12` every few seconds after an upload until `status` is `ready`."
+    ),
+)
 def get_document(document: OwnedDocument, db: DbSession):
     return _out(db, document)
 
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a document",
+    description=(
+        "Teacher only. Deletes the document, its chunks and the stored file. Questions already generated keep their citation text, so saved sets and PDFs stay intact."
+        "\n\n"
+        "**Use case:** Dave removes an outdated edition of the textbook; the questions he already made from it remain usable."
+    ),
+)
 def delete_document(document: OwnedDocument, db: DbSession, storage: StorageDep):
     key = document.storage_key
     db.delete(document)  # chunks cascade; questions keep their citation snapshots

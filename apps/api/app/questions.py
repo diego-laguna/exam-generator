@@ -48,7 +48,16 @@ def get_owned_question(question_id: int, user: CurrentUser, db: DbSession) -> Ba
 OwnedQuestion = Annotated[BankQuestion, Depends(get_owned_question)]
 
 
-@router.get("", response_model=list[BankQuestionOut])
+@router.get(
+    "",
+    response_model=list[BankQuestionOut],
+    summary="List my questions",
+    description=(
+        "Teacher only. Lists the caller's generated questions with answer, explanation and citations. Filter by `document_id` or `type` (`mcq`, `true_false`); page with `limit` and `offset`."
+        "\n\n"
+        "**Use case:** Dave filters to `type=true_false` for document 12 to review those questions before building a quiz."
+    ),
+)
 def list_questions(
     user: CurrentUser,
     db: DbSession,
@@ -65,12 +74,30 @@ def list_questions(
     return db.scalars(stmt.order_by(BankQuestion.id).limit(limit).offset(offset)).all()
 
 
-@router.get("/{question_id}", response_model=BankQuestionOut)
+@router.get(
+    "/{question_id}",
+    response_model=BankQuestionOut,
+    summary="Get one question",
+    description=(
+        "Teacher only. One question with its correct option, explanation and verified citations. Another teacher's question answers 404."
+        "\n\n"
+        "**Use case:** Dave opens question 41 to read the quoted passage and check the page and line numbers."
+    ),
+)
 def get_question(question: OwnedQuestion):
     return question
 
 
-@router.delete("/{question_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{question_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a question",
+    description=(
+        "Teacher only. Deletes the question; it also leaves any question set that included it."
+        "\n\n"
+        "**Use case:** Dave spots a poorly worded question and deletes it so it never reaches a printed exam."
+    ),
+)
 def delete_question(question: OwnedQuestion, db: DbSession):
     db.delete(question)  # also leaves any set that included it (ON DELETE CASCADE on the item)
     db.commit()
