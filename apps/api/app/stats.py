@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy import case, func, or_, select
 
 from app.dependencies import AnyUser, CurrentUser, DbSession
-from app.models import Answer, Domain, Exam, ExamMode, ExamStatus, Question, TaskStatement
+from exam_core.models import Answer, Domain, Exam, ExamMode, ExamStatus, Question, TaskStatement
 
 router = APIRouter(tags=["stats"])
 

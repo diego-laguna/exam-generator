@@ -8,10 +8,10 @@ from sqlalchemy import select, update
 
 from app.auth import revoke_all_refresh_tokens
 from app.config import get_settings
-from app.db import SessionLocal
+from exam_core.db import SessionLocal
 from app.dependencies import require_role
 from app.main import app
-from app.models import RefreshToken, Role, User
+from exam_core.models import RefreshToken, Role, User
 
 # Test-only routes to exercise the authorization dependencies.
 app.get("/_test/admin", dependencies=[Depends(require_role(Role.admin))])(lambda: {"ok": True})

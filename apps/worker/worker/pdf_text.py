@@ -14,7 +14,7 @@ from pdfminer.high_level import extract_pages
 from pdfminer.layout import LAParams, LTTextContainer, LTTextLine
 from pdfminer.pdfparser import PDFSyntaxError
 
-from app.fetching import IngestionError
+from exam_core.errors import IngestionError
 
 
 @dataclass(frozen=True)

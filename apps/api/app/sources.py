@@ -1,16 +1,16 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Response, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.dependencies import AdminOnly, AnyUser, CurrentUser, DbSession
-from app.embeddings import EmbedderDep
-from app.fetching import FetcherDep, validate_source_url
-from app.ingestion import ingest_source
-from app.models import Chunk, Role, SampleQuestion, Source, SourceStatus, TaskStatement
+from app.queueing import QueueDep, enqueue
+from exam_core.models import Chunk, Role, SampleQuestion, Source, SourceStatus, TaskStatement
+from exam_core.queue import EmbedSamples, IngestSource
+from exam_core.urls import validate_source_url
 
 router = APIRouter(tags=["sources"])
 
@@ -62,9 +62,7 @@ def create_source(
     body: SourceCreate,
     user: CurrentUser,
     db: DbSession,
-    background: BackgroundTasks,
-    fetcher: FetcherDep,
-    embedder: EmbedderDep,
+    queue: QueueDep,
 ):
     source = Source(url=body.url, status=SourceStatus.pending)
     db.add(source)
@@ -74,7 +72,12 @@ def create_source(
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "This URL was already added")
     db.refresh(source)
-    background.add_task(ingest_source, source.id, fetcher, embedder)
+
+    def undo() -> None:
+        db.delete(source)
+        db.commit()
+
+    enqueue(queue, IngestSource(source_id=source.id), undo)
     return _out(source, 0, user.role)
 
 
@@ -164,7 +167,7 @@ class SamplesCreated(BaseModel):
         "**Use case:** The admin pastes a JSON batch `{\"samples\": [{\"task_statement\": \"1.1\", \"stem\": \"...\", \"options\": {\"A\": \"...\", \"B\": \"...\", \"C\": \"...\", \"D\": \"...\"}, \"correct_option\": \"B\"}]}` to grow the question bank."
     ),
 )
-def create_samples(body: SamplesCreate, db: DbSession, embedder: EmbedderDep):
+def create_samples(body: SamplesCreate, db: DbSession, queue: QueueDep):
     tasks = {t.code: t for t in db.scalars(select(TaskStatement))}
     resolved: list[tuple[int, int | None]] = []
     for i, sample in enumerate(body.samples):
@@ -180,7 +183,6 @@ def create_samples(body: SamplesCreate, db: DbSession, embedder: EmbedderDep):
             raise HTTPException(422, f"samples[{i}]: unknown domain")
         resolved.append((domain_id, task.id if task else None))
 
-    vectors = embedder.embed([s.stem for s in body.samples])
     rows = [
         SampleQuestion(
             domain_id=domain_id,
@@ -188,10 +190,16 @@ def create_samples(body: SamplesCreate, db: DbSession, embedder: EmbedderDep):
             stem=s.stem,
             options=s.options,
             correct_option=s.correct_option,
-            embedding=vec,
         )
-        for s, (domain_id, task_id), vec in zip(body.samples, resolved, vectors)
+        for s, (domain_id, task_id) in zip(body.samples, resolved)
     ]
     db.add_all(rows)
     db.commit()
+
+    def undo() -> None:
+        for row in rows:
+            db.delete(row)
+        db.commit()
+
+    enqueue(queue, EmbedSamples(sample_ids=[r.id for r in rows]), undo)
     return SamplesCreated(created=len(rows), ids=[r.id for r in rows])

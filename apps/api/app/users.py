@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.dependencies import DbSession, require_role
-from app.models import Role, User
+from exam_core.models import Role, User
 from app.security import password_hash
 
 router = APIRouter(prefix="/users", tags=["users"])

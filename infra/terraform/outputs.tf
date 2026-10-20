@@ -6,6 +6,18 @@ output "ecr_repository_url" {
   value = aws_ecr_repository.api.repository_url
 }
 
+output "worker_ecr_repository_url" {
+  value = aws_ecr_repository.worker.repository_url
+}
+
+output "jobs_queue_url" {
+  value = aws_sqs_queue.jobs.url
+}
+
+output "jobs_dead_letter_queue_url" {
+  value = aws_sqs_queue.dlq.url
+}
+
 output "documents_bucket" {
   value = aws_s3_bucket.documents.bucket
 }

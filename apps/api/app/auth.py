@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.dependencies import DbSession, get_current_claims
-from app.models import RefreshToken, RevokedToken, User
+from exam_core.models import RefreshToken, RevokedToken, User
 from app.security import (
     DUMMY_HASH,
     create_access_token,

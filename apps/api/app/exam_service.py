@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import (
+from exam_core.models import (
     Answer,
     Domain,
     Exam,

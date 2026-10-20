@@ -7,7 +7,7 @@ import jwt
 from pwdlib import PasswordHash
 
 from app.config import get_settings
-from app.models import Role
+from exam_core.models import Role
 
 password_hash = PasswordHash.recommended()
 # Verified against when the username is unknown, so timing doesn't reveal it.

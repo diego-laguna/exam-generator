@@ -20,9 +20,14 @@ locals {
     { name = "DB_HOST", value = aws_db_instance.main.address },
     { name = "DB_PORT", value = tostring(aws_db_instance.main.port) },
     { name = "DB_NAME", value = aws_db_instance.main.db_name },
+    { name = "SQS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
+    { name = "SQS_REGION", value = var.region },
+  ]
+
+  worker_environment = concat(local.environment, [
     { name = "LLM_GENERATION_MODEL", value = var.llm_generation_model },
     { name = "LLM_VALIDATION_MODEL", value = var.llm_validation_model },
-  ]
+  ])
 
   db_secrets = [
     { name = "DB_USER", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:username::" },
@@ -31,8 +36,14 @@ locals {
 
   app_secrets = concat(local.db_secrets, [
     { name = "JWT_SECRET_KEY", valueFrom = aws_secretsmanager_secret.jwt.arn },
+  ])
+
+  # Only the worker talks to the model, so only it gets the Anthropic key.
+  worker_secrets = concat(local.db_secrets, [
     { name = "ANTHROPIC_API_KEY", valueFrom = aws_secretsmanager_secret.anthropic.arn },
   ])
+
+  worker_image = "${aws_ecr_repository.worker.repository_url}:${var.image_tag}"
 }
 
 resource "aws_ecs_task_definition" "api" {
@@ -88,8 +99,7 @@ resource "aws_ecs_task_definition" "migrate" {
     essential   = true
     command     = ["sh", "-c", "alembic upgrade head && python -m scripts.seed_reference"]
     environment = local.environment
-    # The app settings require a JWT key even though migrations never use it.
-    secrets = concat(local.db_secrets, [{ name = "JWT_SECRET_KEY", valueFrom = aws_secretsmanager_secret.jwt.arn }])
+    secrets     = local.db_secrets
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -187,4 +197,56 @@ resource "aws_ecs_service" "api" {
   }
 
   depends_on = [aws_lb_listener.http]
+}
+
+resource "aws_ecs_task_definition" "worker" {
+  family                   = "${var.name}-worker"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = var.worker_cpu
+  memory                   = var.worker_memory
+  execution_role_arn       = aws_iam_role.execution.arn
+  task_role_arn            = aws_iam_role.worker.arn
+
+  runtime_platform {
+    operating_system_family = "LINUX"
+    cpu_architecture        = "X86_64"
+  }
+
+  container_definitions = jsonencode([{
+    name        = "worker"
+    image       = local.worker_image
+    essential   = true
+    environment = local.worker_environment
+    secrets     = local.worker_secrets
+    # SIGTERM on deploys: the worker finishes its current job, so give it time.
+    stopTimeout = 120
+    logConfiguration = {
+      logDriver = "awslogs"
+      options = {
+        awslogs-group         = aws_cloudwatch_log_group.api.name
+        awslogs-region        = var.region
+        awslogs-stream-prefix = "worker"
+      }
+    }
+  }])
+}
+
+resource "aws_ecs_service" "worker" {
+  name            = "worker"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.worker.arn
+  desired_count   = var.worker_desired_count
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = aws_subnet.private[*].id
+    security_groups  = [aws_security_group.worker.id]
+    assign_public_ip = false
+  }
+
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
 }

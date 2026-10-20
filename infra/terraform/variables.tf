@@ -37,6 +37,23 @@ variable "task_memory" {
   default     = 2048
 }
 
+variable "worker_desired_count" {
+  description = "Worker tasks. Keep 0 for the first apply, like desired_count: the worker image and the Anthropic key must exist."
+  type        = number
+  default     = 0
+}
+
+variable "worker_cpu" {
+  type    = number
+  default = 1024
+}
+
+variable "worker_memory" {
+  description = "MiB. The embedding model and large PDFs are processed here; do not go below 2048."
+  type        = number
+  default     = 4096
+}
+
 variable "certificate_arn" {
   description = "ACM certificate for HTTPS. When null the ALB serves plain HTTP only (fine for a throwaway POC, not for real users)."
   type        = string

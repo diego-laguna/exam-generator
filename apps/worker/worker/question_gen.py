@@ -15,11 +15,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, load_only
 
-from app.config import Settings, get_settings
-from app.db import SessionLocal
-from app.embeddings import Embedder
-from app.llm import Llm, LlmError
-from app.models import (
+from exam_core.config import Settings, get_settings
+from exam_core.db import SessionLocal
+from exam_core.embeddings import Embedder
+from worker.llm import Llm, LlmError
+from exam_core.models import (
     BankQuestion,
     Document,
     DocumentChunk,
@@ -27,7 +27,7 @@ from app.models import (
     JobStatus,
     QuestionType,
 )
-from app.pdf_text import numbered_text, quote_matches
+from worker.pdf_text import numbered_text, quote_matches
 
 log = logging.getLogger(__name__)
 
@@ -161,15 +161,22 @@ def generate_question(
 
 def run_generation(
     job_id: int,
-    llm: Llm,
+    llm: Llm | None,
     embedder: Embedder,
     session_factory: Callable[[], Session] = SessionLocal,
 ) -> None:
-    """Background job. Never raises; the outcome is recorded on the job row."""
+    """Worker job. Never raises; the outcome is recorded on the job row."""
     settings = get_settings()
     with session_factory() as db:
         job = db.get(GenerationJob, job_id)
-        if job is None:
+        # Only a queued job is claimed: a redelivered message for a job that is running, done or
+        # already failed (for example timed out) must not produce its questions twice.
+        if job is None or job.status != JobStatus.queued:
+            return
+        if llm is None:
+            job.status = JobStatus.failed
+            job.error = "Question generation is not configured"
+            db.commit()
             return
         job.status = JobStatus.running
         db.commit()

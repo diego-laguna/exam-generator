@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.clock import ClockDep
 from app.dependencies import DbSession, require_role
 from app.exam_service import expire_if_needed
-from app.models import Exam, ExamMode, ExamStatus, Role, User
+from exam_core.models import Exam, ExamMode, ExamStatus, Role, User
 
 
 def error(status_code: int, code: str, message: str) -> HTTPException:

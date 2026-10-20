@@ -1,22 +1,28 @@
 # Deploying to AWS
 
-Architecture: ALB → ECS Fargate (API container) → RDS PostgreSQL 17 (pgvector) and S3 (PDFs). Secrets live in Secrets Manager and are injected as environment variables, so the app's settings code is the same as locally. Infrastructure is Terraform in `infra/terraform/` (validated with `terraform validate`, not applied by CI).
+Architecture: ALB → ECS Fargate (API container) → RDS PostgreSQL 17 (pgvector), S3 (PDFs) and an SQS queue; a second Fargate service (the worker) consumes the queue. Secrets live in Secrets Manager and are injected as environment variables, so the app's settings code is the same as locally. Infrastructure is Terraform in `infra/terraform/` (validated with `terraform validate`, not applied by CI).
 
 ```
-Internet → ALB (public subnets) → ECS Fargate tasks (private subnets) → RDS (private)
-                                        │                                 
+Internet → ALB (public subnets) → API tasks (private subnets) → RDS (private)
+                                        │
                                         ├→ S3 (PDFs, private, encrypted)
+                                        └→ SQS jobs queue (+ dead-letter queue)
+                                                │
+                                   Worker tasks ┘ → RDS, S3 (read PDFs)
+                                        │
                                         ├→ Secrets Manager (JWT key, Anthropic key, DB password)
                                         └→ NAT gateway → api.anthropic.com
 ```
 
 | Concern | Resource |
 |---|---|
-| Container image | ECR (scan on push, keeps last 20) |
-| API | ECS Fargate service, 1 task by default, circuit-breaker rollback, `/health` target check |
+| Container images | Two ECR repositories, `exam-generator` (API) and `exam-generator-worker` (scan on push, keeps last 20 each) |
+| API | ECS Fargate service, circuit-breaker rollback, `/health` target check. Gets only the JWT key and DB secrets; may send to the queue |
+| Worker | ECS Fargate service without a load balancer: embeddings, PDF processing, question generation. Gets the DB secrets and the Anthropic key; may receive from the queue and read PDFs |
+| Job queue | SQS standard queue with long polling and a dead-letter queue after 3 receives (14-day retention), SSE, and a CloudWatch alarm when the dead-letter queue is not empty |
 | Migrations | One-off ECS task (`migrate`): `alembic upgrade head` + reference data |
 | Database | RDS PostgreSQL 17, encrypted, 7-day backups, master password managed (and rotatable) by RDS in Secrets Manager |
-| PDFs | S3 bucket: public access blocked, SSE, TLS-only policy; task role limited to `documents/*` |
+| PDFs | S3 bucket: public access blocked, SSE, TLS-only policy; the API task role writes and the worker role reads `documents/*` only |
 | Secrets | `exam-generator/jwt-secret-key` (generated), `exam-generator/anthropic-api-key` (you set it), RDS secret |
 | Network | VPC, 2 AZs, ALB in public subnets, tasks and DB in private subnets, S3 gateway endpoint, one NAT |
 | Logs | CloudWatch `/ecs/exam-generator` |
@@ -27,7 +33,7 @@ AWS credentials for the target account (`aws sso login` or a profile), Terraform
 
 ## First deployment
 
-The service starts at 0 tasks, because it cannot run before the image and the Anthropic key exist.
+The API and worker services start at 0 tasks, because they cannot run before their images and the Anthropic key exist.
 
 ```bash
 cd infra/terraform
@@ -35,12 +41,15 @@ cp terraform.tfvars.example terraform.tfvars        # edit region / certificate_
 terraform init && terraform apply
 
 ECR=$(terraform output -raw ecr_repository_url)
+ECR_WORKER=$(terraform output -raw worker_ecr_repository_url)
 REGION=us-east-1                                    # same as in tfvars
 
-# 1. Build and push the image (Fargate runs linux/amd64 here)
+# 1. Build and push both images (Fargate runs linux/amd64 here). The build context is the repository root.
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin "${ECR%%/*}"
-docker build --platform linux/amd64 -t "$ECR:latest" ../../apps/api
+docker build --platform linux/amd64 -f ../../apps/api/Dockerfile -t "$ECR:latest" ../..
+docker build --platform linux/amd64 -f ../../apps/worker/Dockerfile -t "$ECR_WORKER:latest" ../..
 docker push "$ECR:latest"
+docker push "$ECR_WORKER:latest"
 
 # 2. Store the Anthropic key without echoing it or putting it on the command line
 read -rs ANTHROPIC_KEY
@@ -56,8 +65,8 @@ aws ecs run-task --region $REGION --cluster "$(terraform output -raw ecs_cluster
   --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG],assignPublicIp=DISABLED}"
 # watch it in CloudWatch (stream prefix "migrate"), wait for exit code 0
 
-# 4. Start the API
-terraform apply -var desired_count=1
+# 4. Start the API and the worker
+terraform apply -var desired_count=1 -var worker_desired_count=1
 curl "$(terraform output -raw url)/health"
 ```
 
@@ -81,13 +90,13 @@ The admin then creates teachers with `POST /api/v1/users` (`"role": "teacher"`).
 
 ## Updating
 
-Push a new image tag, run the migrate task if the schema changed, then `terraform apply -var image_tag=<tag>` (or force a new deployment with `aws ecs update-service --force-new-deployment`). The circuit breaker rolls back a deployment whose tasks fail health checks.
+Push new image tags (only the images whose code changed need a new build: an API-only change does not touch the worker image or its embedding model), run the migrate task if the schema changed, then `terraform apply -var image_tag=<tag>` (or force a new deployment with `aws ecs update-service --force-new-deployment` for `api` and `worker`). The circuit breaker rolls back a deployment whose tasks fail health checks. The worker finishes its current job on SIGTERM (stop timeout 120 s).
 
 ## Things to know before real use
 
 - **HTTPS:** without `certificate_arn` the ALB serves plain HTTP, so passwords and tokens cross the internet unencrypted. Set a certificate before anyone real logs in.
-- **Background jobs:** document processing and generation run inside the API task. A deploy or crash mid-job leaves it `processing`/`running`; it is reported as failed after `JOB_STALE_MINUTES` and the teacher retries. Use a single task until jobs move to SQS.
+- **Background jobs:** the API only queues work; the worker does it. If the worker is down, uploads stay `pending` (reported failed after `JOB_STALE_MINUTES`) while their messages wait in the queue. A message that crashes the worker three times goes to the dead-letter queue and raises a CloudWatch alarm; there is no notification target yet, so attach an SNS topic to the alarm. A generation job interrupted mid-way is reported failed and the teacher retries. One worker task is enough to start; run more by raising `worker_desired_count` (there is no autoscaling on queue depth yet).
 - **Cost (rough, us-east-1):** NAT gateway ≈ $33/month, ALB ≈ $17, Fargate 1 vCPU / 2 GB ≈ $36, RDS t4g.micro ≈ $13, plus LLM usage. Tear down a POC with `protect_data=false` then `terraform destroy`.
 - **Terraform state** holds the generated JWT key. Use an encrypted remote backend (see `versions.tf`) beyond a personal POC.
 - **Rotating secrets:** the JWT key rotates by changing the secret and redeploying (it signs out everyone). The DB password is rotated by RDS; redeploy to pick it up.
-- **Not included:** WAF, autoscaling, multi-region, VPC endpoints for ECR/Secrets Manager (they go through the NAT), a CI deploy pipeline.
+- **Not included:** WAF, autoscaling (API or worker), multi-region, VPC endpoints for ECR/Secrets Manager (they go through the NAT), a CI deploy pipeline.

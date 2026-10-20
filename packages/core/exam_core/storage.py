@@ -2,11 +2,9 @@
 
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Protocol
+from typing import Protocol
 
-from fastapi import Depends
-
-from app.config import get_settings
+from exam_core.config import get_settings
 
 
 class Storage(Protocol):
@@ -71,5 +69,3 @@ def get_storage() -> Storage:
         return S3Storage(settings.s3_bucket)
     return LocalStorage(settings.local_storage_dir)
 
-
-StorageDep = Annotated[Storage, Depends(get_storage)]

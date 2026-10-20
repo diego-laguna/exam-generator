@@ -5,17 +5,17 @@ default:
     @just --list
 
 # --- shared infrastructure -------------------------------------------------
-# Start PostgreSQL + pgvector
+# Start PostgreSQL + pgvector and the local SQS stand-in (ElasticMQ)
 db-up:
     docker compose up -d --wait
 
 db-down:
     docker compose down
 
-# --- apps/api (Python, uv) ------------------------------------------------
-# Install Python dependencies
+# --- Python workspace (uv): apps/api, apps/worker, packages/core -----------------
+# Install Python dependencies for all three
 api-install:
-    cd apps/api && uv sync
+    uv sync --all-packages
 
 # Run the API with reload on http://127.0.0.1:8000
 api-dev:
@@ -33,17 +33,29 @@ seed:
 api-test *args:
     cd apps/api && uv run pytest {{args}}
 
-# Static type check (must report 0 errors)
+# Static type check of the whole Python workspace (must report 0 errors)
 api-check:
-    cd apps/api && uv run pyright
+    uv run pyright
 
-# Build the production image
+# Production images (the build context is the repository root)
 api-image:
-    docker build -t exam-generator:dev apps/api
+    docker build -f apps/api/Dockerfile -t exam-generator-api:dev .
+
+worker-image:
+    docker build -f apps/worker/Dockerfile -t exam-generator-worker:dev .
+
+# --- apps/worker (queue consumer: PDFs, embeddings, question generation) ------------
+# Run the worker (needs `just db-up`; reads apps/worker/.env)
+worker-dev:
+    cd apps/worker && uv run python -m worker
+
+# Worker tests (need `just db-up`); extra args go to pytest
+worker-test *args:
+    cd apps/worker && uv run pytest {{args}}
 
 # --- everything ---------------------------------------------------------------
-# What CI runs for the API
-check: api-check api-test js-check
+# What CI runs for the Python and JS code
+check: api-check api-test worker-test js-check
 
 # --- JavaScript workspace (pnpm) ----------------------------------------------
 # Install JS dependencies

@@ -2,8 +2,8 @@
 
 from sqlalchemy import select
 
-from app.db import SessionLocal
-from app.models import Role, User
+from exam_core.db import SessionLocal
+from exam_core.models import Role, User
 from app.security import password_hash
 
 SAMPLE_USERS = [

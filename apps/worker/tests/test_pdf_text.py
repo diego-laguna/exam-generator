@@ -1,8 +1,8 @@
 import pytest
 
-from app.fetching import IngestionError
-from app.pdf_text import Line, chunk_lines, extract_lines, quote_matches
-from tests.helpers_teacher import LESSON, make_pdf
+from exam_core.errors import IngestionError
+from worker.pdf_text import Line, chunk_lines, extract_lines, quote_matches
+from exam_core.testing import LESSON, make_pdf
 
 
 def test_extracts_numbered_lines_per_page_in_reading_order():

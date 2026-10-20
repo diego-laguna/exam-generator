@@ -1,17 +1,23 @@
+import io
+
 import pytest
+from pdfminer.high_level import extract_text
 
-from app.pdf_text import extract_lines
-
-from tests.test_documents import P, client, new_teacher, storage, teacher, upload  # noqa: F401
-from tests.test_generation import QUOTE, draft, generate, llm_with, ready_document, use_llm  # noqa: F401
+from exam_core.db import SessionLocal
+from exam_core.models import BankQuestion
+from tests.helpers_api import P, bank_questions, client, new_teacher, ready_document
 
 
 @pytest.fixture
-def questions(storage, teacher, use_llm):
-    use_llm(llm_with(lambda prompt: draft(tf="true_false" in prompt)))
-    job = generate(teacher, ready_document(teacher), mcq_count=2, true_false_count=1)
-    assert len(job["question_ids"]) == 3
-    return job["question_ids"]
+def teacher():
+    return new_teacher()
+
+
+@pytest.fixture
+def questions(teacher):
+    ids = bank_questions(teacher, ready_document(teacher), mcq=2, true_false=1)
+    assert len(ids) == 3
+    return ids
 
 
 def make_set(teacher, ids, title="Unit 1 quiz"):
@@ -21,8 +27,7 @@ def make_set(teacher, ids, title="Unit 1 quiz"):
 
 
 def pdf_text(response):
-    lines, _ = extract_lines(response.content, 50)
-    return "\n".join(l.text for l in lines)
+    return extract_text(io.BytesIO(response.content))
 
 
 def test_create_list_get_keeps_question_order(teacher, questions):
@@ -102,14 +107,13 @@ def test_teacher_pdf_has_answers_explanations_and_page_line_sources(teacher, que
     assert "Source: lesson.pdf, page 1, line 2" in text
 
 
-def test_pdf_escapes_markup_in_question_text(teacher, storage, use_llm):
-    def evil(prompt):
-        d = draft()
-        return d.model_copy(update={"stem": "Which tag is <b>bold</b> & what is 5 < 6 in <i>HTML</i>?"})
-
-    use_llm(llm_with(evil))
-    ids = generate(teacher, ready_document(teacher))["question_ids"]
-    sid = make_set(teacher, ids)["id"]
+def test_pdf_escapes_markup_in_question_text(teacher, questions):
+    with SessionLocal() as db:
+        row = db.get(BankQuestion, questions[0])
+        assert row is not None
+        row.stem = "Which tag is <b>bold</b> & what is 5 < 6 in <i>HTML</i>?"
+        db.commit()
+    sid = make_set(teacher, [questions[0]])["id"]
     r = client.get(f"{P}/question-sets/{sid}/pdf", headers=teacher)
     assert r.status_code == 200
     assert "<b>bold</b> & what is 5 < 6 in <i>HTML</i>?" in pdf_text(r)

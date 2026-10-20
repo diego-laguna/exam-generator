@@ -15,5 +15,14 @@ services:
       timeout: 3s
       retries: 10
 
+  # SQS-compatible queue for the worker (API -> queue -> worker). Queue URL:
+  # http://localhost:9324/000000000000/exam-generator-jobs
+  queue:
+    image: softwaremill/elasticmq-native:1.6.11
+    ports:
+      - "9324:9324"
+    volumes:
+      - ./infra/local/elasticmq.conf:/opt/elasticmq.conf:ro
+
 volumes:
   pgdata:

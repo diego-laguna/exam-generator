@@ -18,9 +18,9 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from app import models  # noqa: F401  (registers tables)
-from app.config import get_settings
-from app.db import Base
+from exam_core import models  # noqa: F401  (registers tables)
+from exam_core.config import get_settings
+from exam_core.db import Base
 
 # "%" must be doubled: the value goes through configparser interpolation (URL-escaped passwords).
 config.set_main_option("sqlalchemy.url", get_settings().sqlalchemy_url.replace("%", "%%"))

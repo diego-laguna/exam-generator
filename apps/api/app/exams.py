@@ -13,7 +13,7 @@ from app.dependencies import CurrentUser, DbSession, StudentOnly
 from app.exam_deps import ActiveExam, OwnedExam, UnlockedExam, error
 from app.exam_service import create_exam as create_exam_record
 from app.exam_service import expire_if_needed, finalize_exam
-from app.models import (
+from exam_core.models import (
     Answer,
     Domain,
     Exam,

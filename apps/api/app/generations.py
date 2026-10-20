@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,10 +9,9 @@ from sqlalchemy.orm import Session
 from app.clock import ClockDep
 from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession, TeacherOnly
-from app.embeddings import EmbedderDep
-from app.llm import LlmDep
-from app.models import BankQuestion, Document, DocumentStatus, GenerationJob, JobStatus
-from app.question_gen import run_generation
+from app.queueing import QueueDep, enqueue
+from exam_core.models import BankQuestion, Document, DocumentStatus, GenerationJob, JobStatus
+from exam_core.queue import RunGeneration
 
 router = APIRouter(prefix="/generations", tags=["generations"], dependencies=[TeacherOnly])
 
@@ -98,7 +97,7 @@ OwnedJob = Annotated[GenerationJob, Depends(get_owned_job)]
     status_code=status.HTTP_202_ACCEPTED,
     summary="Generate questions",
     description=(
-        "Teacher only. Starts a background job that writes multiple-choice and true/false questions from the chosen ready documents. Each question carries citations (document, page, lines, quote) that are checked against the PDF text, and must pass a second, blind validation before it is stored. One job runs at a time per teacher (409 otherwise); 503 when no Anthropic key is configured."
+        "Teacher only. Starts a background job that writes multiple-choice and true/false questions from the chosen ready documents. Each question carries citations (document, page, lines, quote) that are checked against the PDF text, and must pass a second, blind validation before it is stored. One job runs at a time per teacher (409 otherwise). A worker picks the job up from the queue; it fails with a readable error when no Anthropic key is configured there."
         "\n\n"
         "**Use case:** Dave sends `{\"document_ids\": [12], \"mcq_count\": 8, \"true_false_count\": 2, \"focus\": \"photosynthesis\"}` and gets back a job to watch."
     ),
@@ -107,10 +106,8 @@ def create_generation(
     body: GenerationCreate,
     user: CurrentUser,
     db: DbSession,
-    background: BackgroundTasks,
     clock: ClockDep,
-    llm: LlmDep,
-    embedder: EmbedderDep,
+    queue: QueueDep,
 ):
     document_ids = sorted(set(body.document_ids))
     documents = db.scalars(
@@ -141,7 +138,13 @@ def create_generation(
     db.add(job)
     db.commit()
     db.refresh(job)
-    background.add_task(run_generation, job.id, llm, embedder)
+
+    def undo() -> None:
+        job.status = JobStatus.failed
+        job.error = "The job could not be queued"
+        db.commit()
+
+    enqueue(queue, RunGeneration(job_id=job.id), undo)
     return _out(db, job)
 
 

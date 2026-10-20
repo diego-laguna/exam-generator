@@ -36,7 +36,7 @@ resource "aws_iam_role_policy" "execution_secrets" {
   policy = data.aws_iam_policy_document.execution_secrets.json
 }
 
-# Task role: what the application code itself may do. Only its own PDF prefix in one bucket.
+# Task role of the API: its own PDF prefix in one bucket, and sending messages to the job queue.
 resource "aws_iam_role" "task" {
   name               = "${var.name}-task"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
@@ -47,10 +47,37 @@ data "aws_iam_policy_document" "task" {
     actions   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject"]
     resources = ["${aws_s3_bucket.documents.arn}/documents/*"]
   }
+  statement {
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.jobs.arn]
+  }
 }
 
 resource "aws_iam_role_policy" "task" {
   role   = aws_iam_role.task.id
   name   = "documents-bucket"
   policy = data.aws_iam_policy_document.task.json
+}
+
+# Task role of the worker: reads the PDFs, and receives and acknowledges job messages.
+resource "aws_iam_role" "worker" {
+  name               = "${var.name}-worker"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
+}
+
+data "aws_iam_policy_document" "worker" {
+  statement {
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.documents.arn}/documents/*"]
+  }
+  statement {
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility", "sqs:GetQueueAttributes"]
+    resources = [aws_sqs_queue.jobs.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "worker" {
+  role   = aws_iam_role.worker.id
+  name   = "documents-and-queue"
+  policy = data.aws_iam_policy_document.worker.json
 }

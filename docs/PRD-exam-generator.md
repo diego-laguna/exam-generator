@@ -63,7 +63,7 @@ PDF upload → S3 → extract numbered lines → chunk (40 lines, 5 overlap) →
 - Questions are written in the language of the source text.
 - Document text is treated as untrusted data in the prompt (prompt-injection mitigation); output is validated with Pydantic and never executed.
 - At most one running generation per teacher, and at most 50 questions per request, to bound LLM spend.
-- Jobs run as FastAPI `BackgroundTasks` and are recorded in `generation_jobs`. A job or document stuck in `running`/`processing` longer than `JOB_STALE_MINUTES` is reported as failed. A durable queue (SQS + worker) is the next step if jobs must survive restarts (section 11).
+- Jobs are recorded in `generation_jobs`; the API sends a message to an SQS queue and a separate worker app runs the job (`apps/worker`). A message is deleted only after the job finished, redelivery is safe, and a message that fails three times goes to a dead-letter queue. A job or document stuck in `running`/`processing` longer than `JOB_STALE_MINUTES` is reported as failed.
 
 ## 6. API
 
@@ -74,7 +74,7 @@ All under `/api/v1`, teacher-only unless stated. Anything owned by another teach
 | `POST /documents` | Upload a PDF (multipart, max 25 MB). 202; poll until `ready`. Duplicate file → 409; not a PDF → 422 |
 | `GET /documents`, `GET /documents/{id}` | Status (`pending`/`processing`/`ready`/`failed`), page count, chunk count, error |
 | `DELETE /documents/{id}` | Remove the document, its chunks and the stored file. Questions stay |
-| `POST /generations` | `document_ids`, `mcq_count`, `true_false_count`, optional `focus` → 202. 503 `LLM_NOT_CONFIGURED` without an API key; 409 `JOB_IN_PROGRESS` |
+| `POST /generations` | `document_ids`, `mcq_count`, `true_false_count`, optional `focus` → 202. 409 `JOB_IN_PROGRESS`; 503 `QUEUE_UNAVAILABLE` if the job could not be queued. Without an API key on the worker the job ends `failed` ("Question generation is not configured") |
 | `GET /generations`, `GET /generations/{id}` | Status, requested vs produced count, `question_ids` |
 | `GET /questions`, `GET /questions/{id}` | The teacher's bank, filter by `document_id`, `type` |
 | `DELETE /questions/{id}` | Delete a question (also leaves any set) |
@@ -124,7 +124,7 @@ The SAA-C03 student exam flow (timed exams, practice mode, stats, URL ingestion 
 
 ## 10. Tech stack
 
-Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, fastembed (`BAAI/bge-small-en-v1.5`), pdfminer.six (PDF text), ReportLab (PDF export), Anthropic API (generation + validation), boto3 (S3). Local: Docker Compose runs Postgres. AWS: see [`DEPLOY.md`](DEPLOY.md).
+Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, ReportLab (PDF export), boto3 (S3, SQS). In the worker: fastembed (`BAAI/bge-small-en-v1.5`), pdfminer.six (PDF text), Anthropic API (generation + validation). The API, worker and shared code are a uv workspace (`apps/api`, `apps/worker`, `packages/core`). Local: Docker Compose runs Postgres. AWS: see [`DEPLOY.md`](DEPLOY.md).
 
 **Why one PostgreSQL database:** retrieval can filter by document and rank by similarity in one SQL query, with transactions across all data and no second store to keep in sync. It also maps directly to RDS or Aurora PostgreSQL, which support pgvector. A dedicated vector database adds nothing at POC scale. The embedding dimension (384) is fixed by the embedding model; changing the model needs a migration and re-embedding.
 
@@ -136,7 +136,7 @@ Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, f
 - **FR-RBAC-1:** A caller with the wrong role gets 403 on every endpoint (verified by the role matrix test).
 - **FR-OWN-1:** A teacher accessing another teacher's document, generation, question or set gets 404.
 - **FR-DOC-1:** A non-PDF or oversized upload is rejected (422/413); an unreadable or text-less PDF ends as `failed` with a safe message.
-- **FR-GEN-1:** `POST /generations` returns 202 and the job reaches `done` or `failed`; without an API key it returns 503 `LLM_NOT_CONFIGURED`.
+- **FR-GEN-1:** `POST /generations` returns 202 and the job reaches `done` or `failed`; without an API key on the worker it ends `failed` with a clear message.
 - **FR-GEN-2:** Every stored question has at least one citation whose quote occurs in the cited page and lines.
 - **FR-GEN-3:** No stored question failed blind validation or was flagged ambiguous.
 - **FR-SET-1:** A saved set keeps its question order and can be changed, reused and deleted without deleting its questions.
@@ -165,7 +165,7 @@ Python 3.14, FastAPI, PostgreSQL 17 + pgvector, SQLAlchemy 2 + Alembic, PyJWT, f
 
 ## 14. Open questions and next steps
 
-- Durable jobs: replace `BackgroundTasks` with SQS + a worker task so a deploy or crash does not lose a running generation.
+- Durable generation: a job interrupted mid-way is reported `failed`; resuming it from the questions already produced would save LLM spend. Autoscaling the worker on queue depth.
 - Edit a question before saving it into a set.
 - Assign a saved set to students for online use.
 - Option shuffling and multiple exam versions (A/B) in the PDF export.

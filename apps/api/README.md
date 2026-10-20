@@ -27,7 +27,8 @@ Requirements: [`docs/PRD-exam-generator.md`](../../docs/PRD-exam-generator.md) (
 | Question sets (save, reuse) and printable student / teacher PDFs | Done |
 | AWS deployment (Dockerfile, Terraform, CI) | Provided; Terraform validated, not applied |
 | Student module (timed SAA-C03 exams, stats) | Done, fixture questions only |
-| Durable job queue (SQS), question editing, assigning sets to students | Not started |
+| Durable job queue (SQS) and a separate worker app | Done (`apps/worker`) |
+| Question editing, assigning sets to students | Not started |
 
 ## Technologies
 
@@ -38,11 +39,9 @@ Requirements: [`docs/PRD-exam-generator.md`](../../docs/PRD-exam-generator.md) (
 - **PyJWT** for access tokens and **pwdlib (argon2)** for password hashing
 - **pydantic-settings** for configuration from environment variables
 - **pytest** for tests and **pyright** for static type checking
-- **fastembed** (ONNX, `BAAI/bge-small-en-v1.5`, 384 dimensions) for local embeddings
-- **pdfminer.six** to read PDFs line by line, **ReportLab** to write the printable PDFs
-- **Anthropic API** for generation and validation (the key is optional for everything else)
-- **boto3 / S3** for PDF storage on AWS (a local folder in development)
-- **httpx2** and **BeautifulSoup** for the student module's documentation ingestion
+- **ReportLab** to write the printable PDFs
+- **boto3**: S3 for PDF storage on AWS (a local folder in development) and SQS to hand work to the worker
+- The heavy libraries are in [`apps/worker`](../worker): fastembed (ONNX, `BAAI/bge-small-en-v1.5`, 384 dimensions), pdfminer.six, the Anthropic API client, httpx2 and BeautifulSoup
 - **Docker** and **Terraform** for AWS
 
 ## Getting started
@@ -51,20 +50,22 @@ Requirements: [`docs/PRD-exam-generator.md`](../../docs/PRD-exam-generator.md) (
 
 - [uv](https://docs.astral.sh/uv/getting-started/installation/)
 - Docker with Compose
+- [just](https://github.com/casey/just) (optional; the recipes wrap the commands below)
 
 ### Setup
 
 ```bash
-# 1. Install dependencies (creates .venv)
-uv sync
+# 1. Install dependencies for the whole workspace (creates .venv at the repository root)
+uv sync --all-packages
 
-# 2. Configure the environment
+# 2. Configure the environment (from apps/api)
 cp .env.example .env
 #    then set JWT_SECRET_KEY, e.g.:
 #    python -c "import secrets; print(secrets.token_urlsafe(48))"
-#    and, to generate questions, ANTHROPIC_API_KEY (edit .env yourself; use a key with a spend limit)
+#    To generate questions, set ANTHROPIC_API_KEY in apps/worker/.env (the worker calls the model,
+#    not the API). Edit it yourself and use a key with a spend limit.
 
-# 3. Start PostgreSQL with pgvector
+# 3. Start PostgreSQL with pgvector and the local queue (ElasticMQ)
 docker compose -f ../../compose.yaml up -d --wait
 
 # 4. Create the schema
@@ -75,6 +76,9 @@ uv run python -m scripts.seed_reference
 
 # 6. (Development only) Load sample users
 uv run python -m scripts.seed
+
+# 7. Start the worker in another terminal, so uploads and generation jobs get processed
+cd ../worker && cp .env.example .env && uv run python -m worker
 ```
 
 The sample users are:
@@ -106,7 +110,7 @@ All other endpoints live under `/api/v1`.
 
 ### As a teacher
 
-The teacher flow needs `ANTHROPIC_API_KEY` in `.env` for the generation step. Uploading, listing and exporting work without it.
+The worker must be running (`just worker-dev`) for uploads to become `ready` and for generation to run. Generation also needs `ANTHROPIC_API_KEY` in `apps/worker/.env`; without it the job fails with "Question generation is not configured". Uploading, listing and exporting need no key.
 
 ```bash
 API=http://127.0.0.1:8000/api/v1
@@ -187,30 +191,28 @@ curl -s -X POST $API/sources -H "Authorization: Bearer $ADMIN" -H 'Content-Type:
 curl -s $API/sources -H "Authorization: Bearer $ADMIN" | jq   # status: pending -> ingesting -> ready
 ```
 
-Ingestion runs in the background: the page is fetched, split into overlapping chunks at its headings, embedded, and stored in PostgreSQL with pgvector. The first ingestion downloads the embedding model (about 130 MB, cached in `.cache/fastembed`).
+Ingestion runs in the worker: the page is fetched, split into overlapping chunks at its headings, embedded, and stored in PostgreSQL with pgvector. The first ingestion downloads the embedding model (about 130 MB, cached in `.cache/fastembed` at the repository root).
 
 ## Tests and checks
 
-The tests need PostgreSQL running (`docker compose -f ../../compose.yaml up -d --wait`). They create and reset their own `learn_assistant_test` database, so your development data is never touched.
+The tests need PostgreSQL running (`docker compose -f ../../compose.yaml up -d --wait`). They create and reset their own `learn_assistant_test` database, so your development data is never touched. The worker's tests use `learn_assistant_worker_test`.
 
 ```bash
-uv run pytest        # run the test suite
-uv run pyright       # static type check (must report 0 errors)
+uv run pytest                        # this app's tests (from apps/api)
+(cd ../worker && uv run pytest)      # the worker's tests
+uv run pyright                       # static type check of the whole workspace (0 errors)
 ```
 
-The tests never download the embedding model or touch the network; they use a deterministic fake embedder and fetcher.
+The tests never download the embedding model or touch the network, SQS or S3. The API tests replace the queue with an in-memory recorder (`exam_core.testing.MemoryQueue`) and check the messages it was given; the worker tests run each job function against a deterministic fake embedder, fetcher, storage and LLM. An autouse fixture disables the real LLM even if a key is configured.
 
-The suite also stands in for the model, storage and embedder (`tests/helpers_teacher.py`), so it never calls the Anthropic API or S3, and an autouse fixture disables the real LLM even if your `.env` has a key.
-
-The suite covers authentication and token handling, PDF line extraction, citation verification, generation (retries, rejections, failures), ownership of every teacher resource, question sets and PDF export, role-based access for every endpoint, exam time rules (using an injectable clock), results locking statistics, URL allowlisting (including SSRF bypass attempts), chunking, and pgvector similarity search.
+The API suite covers authentication and token handling, ownership of every teacher resource, queueing (including the queue being down), question sets and PDF export, role-based access for every endpoint, exam time rules (using an injectable clock), results locking, statistics, and pgvector similarity search. The worker suite covers PDF line extraction, citation verification, generation (retries, rejections, failures), redelivery of messages, the receive loop, and SQS calls.
 
 ## Project layout
 
 ```
 app/
   main.py            FastAPI app and router wiring
-  config.py          Settings from environment variables
-  db.py, models.py   SQLAlchemy engine and models
+  config.py          API settings (JWT, cookies, exam rules) on top of exam_core's shared settings
   security.py        JWT, refresh tokens, password hashing
   dependencies.py    Authentication and role dependencies
   auth.py            /auth routes
@@ -220,27 +222,21 @@ app/
   exam_service.py    Exam creation, question selection, scoring
   stats.py           /me/stats
   documents.py       /documents (teacher uploads)
-  document_ingestion.py  Background job: PDF -> numbered lines -> chunks -> embeddings
-  pdf_text.py        PDF line extraction, chunking, citation quote check
-  storage.py         PDF storage: local folder or S3
-  llm.py             Anthropic client behind a small protocol
-  question_gen.py    Generation pipeline: draft, verify citations, blind validation
+  queueing.py        Sends background work to the queue (the worker does it)
   generations.py     /generations (jobs)
   questions.py       /questions (the teacher's bank)
   question_sets.py   /question-sets and PDF download
   pdf_export.py      Printable student sheet and teacher answer key
   sources.py         /sources and /samples (student module)
-  fetching.py        Allowlisted, size-capped page fetching (SSRF guard)
-  chunking.py        HTML -> heading-aware chunks
-  embeddings.py      Local embedding model
-  ingestion.py       Background ingestion job
   retrieval.py       Similarity search over chunks
   clock.py           Injectable server clock
 migrations/          Alembic migrations
 scripts/             Seed and admin-bootstrap scripts, fixture questions
 tests/               pytest suite
-Dockerfile           Production image (build context: this folder)
+Dockerfile           Production image (build context: the repository root)
 ```
+
+Shared code is in [`packages/core`](../../packages/core) (`exam_core`: settings, database engine and models, storage, queue messages, SSRF URL guard) and the queue consumer in [`apps/worker`](../worker). Alembic migrations stay here, next to `alembic.ini`, but they describe the models in `exam_core.models`.
 
 To add a migration after changing models: `uv run alembic revision --autogenerate -m "describe change"`, review the generated file, then `uv run alembic upgrade head`.
 
@@ -252,21 +248,20 @@ Settings come from environment variables or a `.env` file (see `.env.example`).
 |---|---|---|
 | `JWT_SECRET_KEY` | required | Signs access tokens. Keep it secret. |
 | `REFRESH_COOKIE_SECURE` | `true` | `Secure` flag of the refresh cookie. Set `false` only for plain-HTTP deployments (a localhost dev server works with `true`). |
-| `ANTHROPIC_API_KEY` | unset | Enables generation. Blank counts as unset. Never commit it. |
-| `LLM_GENERATION_MODEL` / `LLM_VALIDATION_MODEL` | `claude-sonnet-5-5` | Models for drafting and for blind validation |
+| `SQS_QUEUE_URL` | unset | Job queue. Without it, uploads and generations answer 503 `QUEUE_NOT_CONFIGURED`. Locally: `http://localhost:9324/000000000000/exam-generator-jobs` |
+| `SQS_ENDPOINT_URL` / `SQS_REGION` | unset / `us-east-1` | Endpoint override for a local emulator; region of the queue |
+| `ANTHROPIC_API_KEY`, `LLM_GENERATION_MODEL`, `LLM_VALIDATION_MODEL`, `PDF_MAX_PAGES`, `EMBEDDING_MODEL`, chunk settings | worker only | See [`apps/worker`](../worker); the API never reads them |
 | `DATABASE_URL` | local compose database | SQLAlchemy URL for PostgreSQL |
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | unset | Used instead of `DATABASE_URL` when `DB_HOST` is set (AWS) |
-| `STORAGE_BACKEND` | `local` | `local` (folder `LOCAL_STORAGE_DIR`, default `.data/documents`) or `s3` (needs `S3_BUCKET`) |
-| `UPLOAD_MAX_BYTES` / `PDF_MAX_PAGES` | 25 MB / 400 | Upload limits |
-| `GENERATION_MAX_QUESTIONS` / `GENERATION_ATTEMPTS_PER_SLOT` | 50 / 3 | Per request and per question |
+| `STORAGE_BACKEND` | `local` | `local` (folder `LOCAL_STORAGE_DIR`, default `../../.data/documents`, shared with the worker) or `s3` (needs `S3_BUCKET`) |
+| `UPLOAD_MAX_BYTES` | 25 MB | Upload size limit |
+| `GENERATION_MAX_QUESTIONS` | 50 | Per request |
 | `JOB_STALE_MINUTES` | `30` | A job or document still running after this long is reported as failed |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
 | `EXAM_MINUTES_PER_QUESTION` | `2` | Exam-mode time limit per question |
 | `INGESTION_ALLOWED_HOSTS` | AWS docs hosts | Hosts that sources may come from (JSON list) |
-| `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Must output 384 dimensions |
-| `CHUNK_MAX_CHARS` / `CHUNK_OVERLAP_CHARS` | `1200` / `150` | Chunking |
 
 ## Deploying to AWS
 
-See [`docs/DEPLOY.md`](../../docs/DEPLOY.md): build the image, `terraform apply` in `infra/terraform/`, store the Anthropic key in Secrets Manager, run the migration task, start the service.
+See [`docs/DEPLOY.md`](../../docs/DEPLOY.md): build the API and worker images, `terraform apply` in `infra/terraform/`, store the Anthropic key in Secrets Manager, run the migration task, start the API and the worker.

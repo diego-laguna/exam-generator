@@ -1,18 +1,9 @@
 import threading
 from collections.abc import Sequence
 from functools import lru_cache
-from typing import Annotated, Protocol
 
-from fastapi import Depends
-
-from app.config import get_settings
-
-# Must match the model in settings (BAAI/bge-small-en-v1.5). Changing it needs a migration.
-EMBEDDING_DIM = 384
-
-
-class Embedder(Protocol):
-    def embed(self, texts: Sequence[str]) -> list[list[float]]: ...
+from exam_core.config import get_settings
+from exam_core.embeddings import Embedder
 
 
 class FastEmbedEmbedder:
@@ -40,6 +31,3 @@ class FastEmbedEmbedder:
 def get_embedder() -> Embedder:
     settings = get_settings()
     return FastEmbedEmbedder(settings.embedding_model, settings.embedding_cache_dir)
-
-
-EmbedderDep = Annotated[Embedder, Depends(get_embedder)]

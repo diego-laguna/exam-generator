@@ -5,8 +5,9 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from app.db import get_db
-from app.models import RevokedToken, Role, User
+from exam_core.db import get_db
+from exam_core.models import RevokedToken, Role, User
+from exam_core.storage import Storage, get_storage
 from app.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -63,3 +64,5 @@ AnyUser = Depends(get_current_user)
 def not_implemented() -> None:
     """Placeholder body for endpoints whose access rules exist but logic doesn't yet."""
     raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "Not implemented yet")
+
+StorageDep = Annotated[Storage, Depends(get_storage)]

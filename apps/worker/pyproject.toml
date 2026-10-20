@@ -1,0 +1,30 @@
+[project]
+name = "exam-worker"
+version = "0.1.0"
+description = "Queue worker: PDF ingestion, source ingestion, embeddings and question generation."
+requires-python = ">=3.14"
+dependencies = [
+    "anthropic>=1.15.0",
+    "beautifulsoup4>=4.15.0",
+    "exam-core",
+    "fastembed>=0.9.0",
+    "httpx2>=2.13.1",
+    "pdfminer-six>=20260107",
+]
+
+[tool.uv.sources]
+exam-core = { workspace = true }
+
+[dependency-groups]
+dev = ["pytest>=9.1.1", "reportlab>=5.0.1"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["worker"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
