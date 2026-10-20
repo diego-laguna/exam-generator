@@ -4,7 +4,7 @@ from typing import Any, cast
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Chunk
+from exam_core.models import Chunk
 
 
 def similar_chunks(

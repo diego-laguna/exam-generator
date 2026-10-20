@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -12,12 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.clock import ClockDep
 from app.config import get_settings
-from app.dependencies import CurrentUser, DbSession, TeacherOnly
-from app.document_ingestion import ingest_document
-from app.embeddings import EmbedderDep
-from app.models import Document, DocumentChunk, DocumentStatus
-from app.pdf_text import is_pdf
-from app.storage import StorageDep
+from app.dependencies import CurrentUser, DbSession, StorageDep, TeacherOnly
+from app.queueing import QueueDep, enqueue
+from exam_core.models import Document, DocumentChunk, DocumentStatus
+from exam_core.queue import IngestDocument
 
 router = APIRouter(prefix="/documents", tags=["documents"], dependencies=[TeacherOnly])
 
@@ -108,12 +106,11 @@ async def upload_document(
     file: UploadFile,
     user: CurrentUser,
     db: DbSession,
-    background: BackgroundTasks,
     storage: StorageDep,
-    embedder: EmbedderDep,
+    queue: QueueDep,
 ):
     data = await _read_capped(file, get_settings().upload_max_bytes)
-    if not is_pdf(data):
+    if data[:5] != b"%PDF-":
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The file is not a PDF")
     digest = hashlib.sha256(data).hexdigest()
     key = f"{get_settings().s3_prefix}{user.id}/{uuid.uuid4().hex}.pdf"
@@ -138,7 +135,13 @@ async def upload_document(
         db.commit()
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Could not store the file")
     db.refresh(document)
-    background.add_task(ingest_document, document.id, storage, embedder)
+
+    def undo() -> None:
+        db.delete(document)
+        db.commit()
+        storage.delete(key)
+
+    enqueue(queue, IngestDocument(document_id=document.id), undo)
     return _out(db, document)
 
 

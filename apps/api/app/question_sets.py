@@ -7,7 +7,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.dependencies import CurrentUser, DbSession, TeacherOnly
-from app.models import BankQuestion, QuestionSet, QuestionSetItem
+from exam_core.models import BankQuestion, QuestionSet, QuestionSetItem
 from app.pdf_export import render_question_set_pdf
 from app.questions import BankQuestionOut
 

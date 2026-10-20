@@ -11,7 +11,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer
 
-from app.models import BankQuestion, QuestionType
+from exam_core.models import BankQuestion, QuestionType
 
 Version = Literal["student", "teacher"]
 

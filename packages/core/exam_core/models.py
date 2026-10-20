@@ -18,8 +18,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db import Base
-from app.embeddings import EMBEDDING_DIM
+from exam_core.db import Base
+from exam_core.embeddings import EMBEDDING_DIM
 
 
 class Role(enum.StrEnum):
@@ -238,7 +238,8 @@ class SampleQuestion(Base):
     stem: Mapped[str] = mapped_column(Text)
     options: Mapped[dict[str, str]] = mapped_column(JSONB)
     correct_option: Mapped[str] = mapped_column(String(1))
-    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM))
+    # Filled in by the worker shortly after the sample is created.
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

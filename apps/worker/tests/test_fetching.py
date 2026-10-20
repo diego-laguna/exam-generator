@@ -1,7 +1,9 @@
 import httpx2
 import pytest
 
-from app.fetching import IngestionError, UrlNotAllowed, fetch_html, validate_source_url
+from exam_core.errors import IngestionError
+from exam_core.urls import UrlNotAllowed, validate_source_url
+from worker.fetching import fetch_html
 
 OK = "https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html"
 
@@ -99,7 +101,7 @@ def test_fetch_rejects_non_html():
 
 
 def test_fetch_rejects_oversized_body(monkeypatch):
-    from app.config import get_settings
+    from exam_core.config import get_settings
 
     monkeypatch.setattr(get_settings(), "fetch_max_bytes", 100)
     with pytest.raises(IngestionError, match="too large"):

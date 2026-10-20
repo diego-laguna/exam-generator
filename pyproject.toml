@@ -1,0 +1,31 @@
+# Python workspace: one lockfile and one virtualenv for the API, the worker and the shared package.
+# Each member is installed on its own in Docker (`uv sync --package exam-api` / `exam-worker`).
+[project]
+name = "exam-generator-workspace"
+version = "0.0.0"
+requires-python = ">=3.14"
+dependencies = []
+
+[tool.uv.workspace]
+members = ["apps/api", "apps/worker", "packages/core"]
+
+[dependency-groups]
+dev = ["boto3-stubs[s3,sqs]>=1.43.114", "pyright>=1.1.414", "pytest>=9.1.1"]
+
+[tool.pyright]
+include = ["apps/api/app", "apps/api/scripts", "apps/api/tests", "apps/worker/worker", "apps/worker/tests", "packages/core/exam_core"]
+exclude = ["**/migrations", "**/.venv"]
+venvPath = "."
+venv = ".venv"
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
+
+# `tests` is a package name in both apps, so each gets its own import root.
+[[tool.pyright.executionEnvironments]]
+root = "apps/api"
+
+[[tool.pyright.executionEnvironments]]
+root = "apps/worker"
+
+[[tool.pyright.executionEnvironments]]
+root = "packages/core"

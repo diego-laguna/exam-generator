@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
 from app.dependencies import CurrentUser, DbSession, TeacherOnly
-from app.models import BankQuestion, QuestionType
+from exam_core.models import BankQuestion, QuestionType
 
 router = APIRouter(prefix="/questions", tags=["questions"], dependencies=[TeacherOnly])
 

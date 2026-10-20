@@ -4,13 +4,13 @@ from collections.abc import Callable
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
-from app.db import SessionLocal
-from app.embeddings import Embedder
-from app.fetching import IngestionError
-from app.models import Document, DocumentChunk, DocumentStatus
-from app.pdf_text import chunk_lines, extract_lines, lines_to_json
-from app.storage import Storage
+from exam_core.config import get_settings
+from exam_core.db import SessionLocal
+from exam_core.embeddings import Embedder
+from exam_core.errors import IngestionError
+from exam_core.models import Document, DocumentChunk, DocumentStatus
+from worker.pdf_text import chunk_lines, extract_lines, lines_to_json
+from exam_core.storage import Storage
 
 log = logging.getLogger(__name__)
 
@@ -27,11 +27,13 @@ def ingest_document(
     embedder: Embedder,
     session_factory: Callable[[], Session] = SessionLocal,
 ) -> None:
-    """Background job: read the stored PDF, extract numbered lines, chunk, embed, store. Never raises."""
+    """Worker job: read the stored PDF, extract numbered lines, chunk, embed, store. Never raises."""
     settings = get_settings()
     with session_factory() as db:
         document = db.get(Document, document_id)
-        if document is None:
+        # `processing` is claimable again: a worker that died mid-way left no chunks behind (they
+        # are written together with `ready`), so a redelivered message can safely start over.
+        if document is None or document.status not in (DocumentStatus.pending, DocumentStatus.processing):
             return
         document.status = DocumentStatus.processing
         db.commit()

@@ -9,11 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  api:
+  python:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/api
     services:
       db:
         image: pgvector/pgvector:pg17
@@ -28,9 +25,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-      - run: uv sync --frozen
+      - run: uv sync --frozen --all-packages
       - run: uv run pyright
       - run: uv run pytest -q
+        working-directory: apps/api
+      - run: uv run pytest -q
+        working-directory: apps/worker
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f apps/api/Dockerfile -t exam-api:ci .
+      - run: docker build -f apps/worker/Dockerfile -t exam-worker:ci .
+      # The API image must stay free of the heavy worker-only dependencies.
+      - run: |
+          docker run --rm exam-api:ci python -c "
+          import importlib.util as u
+          heavy = [m for m in ('fastembed', 'onnxruntime', 'pdfminer', 'anthropic') if u.find_spec(m)]
+          assert not heavy, heavy"
 
   terraform:
     runs-on: ubuntu-latest
@@ -59,11 +72,9 @@ jobs:
       - run: pnpm --filter web test
       - run: pnpm --filter web build
       # The committed OpenAPI schema and generated types must match the API.
-      - run: uv sync --frozen
-        working-directory: apps/api
+      - run: uv sync --frozen --package exam-api
       - run: |
-          uv run python -m scripts.export_openapi
+          (cd apps/api && uv run python -m scripts.export_openapi)
           pnpm --filter @exam-generator/api-client generate
-          git diff --exit-code -- ../../packages/api-client || {
+          git diff --exit-code -- packages/api-client || {
             echo "::error::API contract changed. Run 'just gen-client' and commit the result."; exit 1; }
-        working-directory: apps/api

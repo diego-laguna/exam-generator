@@ -18,7 +18,7 @@ def test_health_is_also_reachable_under_the_api_prefix():
 
 
 def test_blank_anthropic_key_counts_as_unset(monkeypatch):
-    from app.config import Settings
+    from exam_core.config import Settings
 
     monkeypatch.setenv("ANTHROPIC_API_KEY", "  ")
     assert Settings().anthropic_api_key is None  # pyright: ignore[reportCallIssue]
@@ -29,7 +29,7 @@ def test_blank_anthropic_key_counts_as_unset(monkeypatch):
 
 
 def test_database_url_is_built_from_parts_with_escaping(monkeypatch):
-    from app.config import Settings
+    from exam_core.config import Settings
 
     monkeypatch.setenv("DB_HOST", "db.example.internal")
     monkeypatch.setenv("DB_USER", "learn")

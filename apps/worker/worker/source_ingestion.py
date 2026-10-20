@@ -4,12 +4,13 @@ from collections.abc import Callable
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.chunking import chunk_sections, extract_sections
-from app.config import get_settings
-from app.db import SessionLocal
-from app.embeddings import Embedder
-from app.fetching import Fetcher, IngestionError
-from app.models import Chunk, Source, SourceStatus
+from worker.chunking import chunk_sections, extract_sections
+from exam_core.config import get_settings
+from exam_core.db import SessionLocal
+from exam_core.embeddings import Embedder
+from exam_core.errors import IngestionError
+from worker.fetching import Fetcher
+from exam_core.models import Chunk, Source, SourceStatus
 
 log = logging.getLogger(__name__)
 
@@ -26,14 +27,14 @@ def ingest_source(
     embedder: Embedder,
     session_factory: Callable[[], Session] = SessionLocal,
 ) -> None:
-    """Background job: fetch, chunk, embed and store a source. Never raises.
+    """Worker job: fetch, chunk, embed and store a source. Never raises.
 
-    Runs in its own session because it outlives the request that scheduled it.
+    Runs in its own session; the request that queued it is long gone.
     """
     settings = get_settings()
     with session_factory() as db:
         source = db.get(Source, source_id)
-        if source is None:
+        if source is None or source.status not in (SourceStatus.pending, SourceStatus.ingesting):
             return
         source.status = SourceStatus.ingesting
         db.commit()

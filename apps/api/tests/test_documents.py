@@ -1,43 +1,15 @@
 import uuid
 
-import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
 from app.config import get_settings
-from app.db import SessionLocal
-from app.embeddings import get_embedder
-from app.main import app
-from app.models import DocumentChunk
-from app.storage import get_storage
-from tests.helpers_ingestion import FakeEmbedder
-from tests.helpers_teacher import LESSON, MemoryStorage, make_pdf
+from exam_core.db import SessionLocal
+from exam_core.models import Document, DocumentChunk, DocumentStatus
+from exam_core.queue import IngestDocument
+from exam_core.testing import LESSON, make_pdf
+from tests.helpers_api import P, client, new_teacher, owner_id_of, ready_document
 
-P = "/api/v1"
-client = TestClient(app)
-
-
-def login(username, password):
-    r = client.post(f"{P}/auth/login", data={"username": username, "password": password})
-    return {"Authorization": f"Bearer {r.json()['access_token']}"}
-
-
-def new_teacher():
-    admin = login("alice", "wonderland")
-    name = f"teacher_{uuid.uuid4().hex[:8]}"
-    r = client.post(f"{P}/users", headers=admin, json={"username": name, "password": "teacher-pass", "role": "teacher"})
-    assert r.status_code == 201
-    return login(name, "teacher-pass")
-
-
-@pytest.fixture
-def storage():
-    fake = MemoryStorage()
-    app.dependency_overrides[get_storage] = lambda: fake
-    app.dependency_overrides[get_embedder] = lambda: FakeEmbedder()
-    yield fake
-    app.dependency_overrides.pop(get_storage, None)
-    app.dependency_overrides.pop(get_embedder, None)
+import pytest
 
 
 @pytest.fixture
@@ -58,60 +30,54 @@ def upload(teacher, data=None, name="lesson.pdf"):
     )
 
 
-def test_upload_processes_pdf_and_stores_numbered_chunks(storage, teacher):
+def test_upload_stores_the_file_and_queues_processing(storage, queue, teacher):
     r = upload(teacher)
     assert r.status_code == 202, r.text
-    # TestClient runs background tasks before returning, so the document is already processed.
-    doc = client.get(f"{P}/documents/{r.json()['id']}", headers=teacher).json()
-    assert doc["status"] == "ready" and doc["page_count"] == 2 and doc["chunk_count"] == 1
-    assert doc["filename"] == "lesson.pdf" and doc["error"] is None
+    doc = r.json()
+    assert doc["status"] == "pending" and doc["filename"] == "lesson.pdf" and doc["chunk_count"] == 0
     assert len(storage.objects) == 1
+    assert queue.sent == [IngestDocument(document_id=doc["id"])]
     with SessionLocal() as db:
-        chunk = db.scalar(select(DocumentChunk).where(DocumentChunk.document_id == doc["id"]))
-        assert chunk is not None
-        assert chunk.lines[0][:2] == [1, 1] and chunk.lines[-1][:2] == [2, 3]
+        row = db.get(Document, doc["id"])
+        assert row is not None and row.storage_key in storage.objects and row.owner_id == owner_id_of(teacher)
 
 
-def test_non_pdf_is_rejected(storage, teacher):
+def test_non_pdf_is_rejected(storage, queue, teacher):
     r = upload(teacher, data=b"just text", name="notes.txt")
     assert r.status_code == 422
-    assert not storage.objects
+    assert not storage.objects and not queue.sent
 
 
-def test_unreadable_pdf_is_marked_failed_with_a_safe_message(storage, teacher):
-    r = upload(teacher, data=b"%PDF-1.4 garbage " + uuid.uuid4().hex.encode())
-    doc = client.get(f"{P}/documents/{r.json()['id']}", headers=teacher).json()
-    assert doc["status"] == "failed" and doc["error"]
-    assert "Traceback" not in doc["error"]
-
-
-def test_scanned_pdf_without_text_fails(storage, teacher):
-    blank = make_pdf([[""]])  # a page with no text layer
-    r = upload(teacher, data=blank + b"\n%" + uuid.uuid4().hex.encode())
-    doc = client.get(f"{P}/documents/{r.json()['id']}", headers=teacher).json()
-    assert doc["status"] == "failed" and "no extractable text" in doc["error"]
-
-
-def test_duplicate_upload_conflicts(storage, teacher):
+def test_duplicate_upload_conflicts(storage, queue, teacher):
     data = unique_pdf()
     assert upload(teacher, data).status_code == 202
     assert upload(teacher, data).status_code == 409
-    assert len(storage.objects) == 1
+    assert len(storage.objects) == 1 and len(queue.sent) == 1
 
 
-def test_size_limit(storage, teacher, monkeypatch):
+def test_size_limit(storage, queue, teacher, monkeypatch):
     monkeypatch.setattr(get_settings(), "upload_max_bytes", 500)
     assert upload(teacher).status_code == 413
-    assert not storage.objects
+    assert not storage.objects and not queue.sent
 
 
-def test_filename_is_sanitized(storage, teacher):
+def test_filename_is_sanitized(storage, queue, teacher):
     r = upload(teacher, name="../../etc/passwd.pdf")
     assert r.json()["filename"] == "passwd.pdf"
     assert all(k.startswith("documents/") and k.endswith(".pdf") for k in storage.objects)
 
 
-def test_documents_are_private_to_their_owner(storage, teacher):
+def test_queue_down_rolls_the_upload_back_and_can_be_retried(storage, queue, teacher):
+    data = unique_pdf()
+    queue.fail = True
+    r = upload(teacher, data)
+    assert r.status_code == 503 and r.json()["detail"]["code"] == "QUEUE_UNAVAILABLE"
+    assert not storage.objects and client.get(f"{P}/documents", headers=teacher).json() == []
+    queue.fail = False
+    assert upload(teacher, data).status_code == 202  # same file: nothing was left behind
+
+
+def test_documents_are_private_to_their_owner(storage, queue, teacher):
     doc_id = upload(teacher).json()["id"]
     other = new_teacher()
     assert client.get(f"{P}/documents/{doc_id}", headers=other).status_code == 404
@@ -120,8 +86,26 @@ def test_documents_are_private_to_their_owner(storage, teacher):
     assert doc_id in [d["id"] for d in client.get(f"{P}/documents", headers=teacher).json()]
 
 
-def test_delete_removes_chunks_and_stored_file(storage, teacher):
+def test_status_and_chunk_count_come_from_the_database(storage, queue, teacher):
+    doc_id = ready_document(teacher)
+    doc = client.get(f"{P}/documents/{doc_id}", headers=teacher).json()
+    assert doc["status"] == "ready" and doc["page_count"] == 2 and doc["chunk_count"] == 1
+
+
+def test_stuck_document_is_reported_failed(storage, queue, teacher, monkeypatch):
     doc_id = upload(teacher).json()["id"]
+    monkeypatch.setattr(get_settings(), "job_stale_minutes", 0)
+    doc = client.get(f"{P}/documents/{doc_id}", headers=teacher).json()
+    assert doc["status"] == DocumentStatus.failed and "timed out" in doc["error"]
+
+
+def test_delete_removes_chunks_and_stored_file(storage, queue, teacher):
+    doc_id = upload(teacher).json()["id"]
+    with SessionLocal() as db:  # the worker would have created chunks
+        from exam_core.testing import FakeEmbedder
+
+        db.add(DocumentChunk(document_id=doc_id, position=0, lines=[[1, 1, "x"]], content="x", embedding=FakeEmbedder().embed(["x"])[0]))
+        db.commit()
     assert client.delete(f"{P}/documents/{doc_id}", headers=teacher).status_code == 204
     assert not storage.objects
     with SessionLocal() as db:

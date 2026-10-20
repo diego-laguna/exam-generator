@@ -119,7 +119,22 @@ resource "aws_security_group" "api" {
     security_groups = [aws_security_group.alb.id]
   }
   egress {
-    description = "Database, S3, Secrets Manager, ECR, Anthropic API"
+    description = "Database, S3, SQS, Secrets Manager, ECR"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  lifecycle { create_before_destroy = true }
+}
+
+resource "aws_security_group" "worker" {
+  name_prefix = "${var.name}-worker-"
+  vpc_id      = aws_vpc.main.id
+  description = "Queue worker tasks: nothing connects to them"
+
+  egress {
+    description = "Database, S3, SQS, Secrets Manager, ECR, Anthropic API (through the NAT gateway)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -134,11 +149,11 @@ resource "aws_security_group" "db" {
   description = "PostgreSQL"
 
   ingress {
-    description     = "From API tasks only"
+    description     = "From API and worker tasks only"
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_security_group.api.id]
+    security_groups = [aws_security_group.api.id, aws_security_group.worker.id]
   }
   lifecycle { create_before_destroy = true }
 }

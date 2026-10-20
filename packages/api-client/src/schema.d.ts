@@ -397,7 +397,7 @@ export interface paths {
         put?: never;
         /**
          * Generate questions
-         * @description Teacher only. Starts a background job that writes multiple-choice and true/false questions from the chosen ready documents. Each question carries citations (document, page, lines, quote) that are checked against the PDF text, and must pass a second, blind validation before it is stored. One job runs at a time per teacher (409 otherwise); 503 when no Anthropic key is configured.
+         * @description Teacher only. Starts a background job that writes multiple-choice and true/false questions from the chosen ready documents. Each question carries citations (document, page, lines, quote) that are checked against the PDF text, and must pass a second, blind validation before it is stored. One job runs at a time per teacher (409 otherwise). A worker picks the job up from the queue; it fails with a readable error when no Anthropic key is configured there.
          *
          *     **Use case:** Dave sends `{"document_ids": [12], "mcq_count": 8, "true_false_count": 2, "focus": "photosynthesis"}` and gets back a job to watch.
          */

@@ -8,8 +8,8 @@ import getpass
 import os
 import sys
 
-from app.db import SessionLocal
-from app.models import Role
+from exam_core.db import SessionLocal
+from exam_core.models import Role
 from app.users import UsernameTaken, create_user
 
 

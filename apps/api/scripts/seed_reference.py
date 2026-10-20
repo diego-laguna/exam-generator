@@ -4,8 +4,8 @@ Idempotent. Run: uv run python -m scripts.seed_reference
 
 from sqlalchemy import select
 
-from app.db import SessionLocal
-from app.models import Domain, Question, TaskStatement
+from exam_core.db import SessionLocal
+from exam_core.models import Domain, Question, TaskStatement
 from scripts.question_fixtures import QUESTIONS
 
 DOMAINS = [

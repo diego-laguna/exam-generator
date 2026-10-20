@@ -1,13 +1,12 @@
 """LLM access behind a small seam so tests never touch the network."""
 
 from functools import lru_cache
-from typing import Annotated, Protocol
+from typing import Protocol
 
-from fastapi import Depends, HTTPException, status
 from anthropic.types import ToolParam
 from pydantic import BaseModel, ValidationError
 
-from app.config import get_settings
+from exam_core.config import get_settings
 
 
 class LlmError(Exception):
@@ -64,14 +63,6 @@ def _anthropic_llm() -> Llm | None:
     return AnthropicLlm(settings.anthropic_api_key.get_secret_value(), settings.llm_max_tokens)
 
 
-def get_llm() -> Llm:
-    llm = _anthropic_llm()
-    if llm is None:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            {"code": "LLM_NOT_CONFIGURED", "message": "Question generation is not configured"},
-        )
-    return llm
-
-
-LlmDep = Annotated[Llm, Depends(get_llm)]
+def get_llm() -> Llm | None:
+    """The configured model client, or None when the worker has no API key."""
+    return _anthropic_llm()

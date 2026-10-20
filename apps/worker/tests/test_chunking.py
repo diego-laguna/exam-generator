@@ -1,5 +1,5 @@
-from app.chunking import MIN_CHUNK_CHARS, chunk_sections, extract_sections
-from tests.helpers_ingestion import page
+from worker.chunking import MIN_CHUNK_CHARS, chunk_sections, extract_sections
+from tests.helpers import page
 
 LOREM = "Amazon S3 stores objects in buckets and offers eleven nines of durability. "
 
