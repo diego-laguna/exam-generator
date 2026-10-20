@@ -41,3 +41,7 @@ output "api_security_group_id" {
 output "anthropic_secret_name" {
   value = aws_secretsmanager_secret.anthropic.name
 }
+
+output "alerts_topic_arn" {
+  value = aws_sns_topic.alerts.arn
+}

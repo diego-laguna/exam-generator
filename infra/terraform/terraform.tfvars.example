@@ -3,3 +3,4 @@ region = "us-east-1"
 # protect_data    = false   # allow `terraform destroy` for a throwaway POC
 # desired_count        = 1  # after the API image is pushed
 # worker_desired_count = 1  # after the worker image is pushed and the Anthropic key is set
+# alert_email          = "you@example.com"  # queue alarms by email (confirm the AWS link)
