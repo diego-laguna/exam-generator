@@ -42,3 +42,30 @@ def test_quote_matching():
     assert not quote_matches(lines, 1, 3, 4, "light during the day.")  # line 4 does not exist
     assert not quote_matches(lines, 2, 1, 1, "Chlorophyll")  # wrong page
     assert not quote_matches(lines, 1, 1, 1, "   ")
+
+
+SPANISH = [
+    [
+        "La fotosíntesis es el proceso por el cual las plantas verdes fabrican su alimento.",
+        "La clorofila de las hojas absorbe la luz del sol durante la fotosíntesis.",
+        "¿Qué órgano libera oxígeno? Los estomas, pequeños poros de la hoja.",
+        "El señor Muñoz explicó que la glucosa se almacena como almidón.",
+    ]
+]
+
+
+def test_spanish_pdf_keeps_accents_and_matches_quotes():
+    lines, pages = extract_lines(make_pdf(SPANISH), 10)
+    assert pages == 1
+    as_json = [[ln.page, ln.number, ln.text] for ln in lines]
+    assert "fotosíntesis" in lines[0].text and "¿Qué órgano" in lines[2].text
+    assert quote_matches(as_json, 1, 3, 3, "¿Qué órgano libera oxígeno?")
+    assert quote_matches(as_json, 1, 4, 4, "EL SEÑOR MUÑOZ explicó")  # case-insensitive
+    assert not quote_matches(as_json, 1, 4, 4, "El senor Munoz explicó")  # missing accents/tilde
+
+
+def test_quote_matching_ignores_unicode_form_and_ligatures():
+    composed = "La ﬁbra del señor está en la página"
+    decomposed = "La fibra del sen\u0303or esta\u0301 en la pa\u0301gina"
+    assert quote_matches([[1, 1, composed]], 1, 1, 1, decomposed)
+    assert quote_matches([[1, 1, decomposed]], 1, 1, 1, composed)

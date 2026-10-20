@@ -7,6 +7,7 @@ PDF has a real text layer; scanned PDFs have none and are rejected.
 
 import io
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from pdfminer.high_level import extract_pages
@@ -42,8 +43,9 @@ def _normalize(text: str) -> str:
 
 def _squeeze(text: str) -> str:
     """Comparison form: no whitespace, hyphens or soft hyphens, so line-end hyphenation and
-    re-spaced quotes still match, but a changed word does not."""
-    return re.sub(r"[\s\u00ad-]+", "", text).lower()
+    re-spaced quotes still match, but a changed word does not. NFKC makes a precomposed "é" equal
+    to "e" + combining accent and expands ligatures such as "ﬁ", which PDFs often contain."""
+    return re.sub(r"[\s\u00ad-]+", "", unicodedata.normalize("NFKC", text)).lower()
 
 
 def extract_lines(data: bytes, max_pages: int) -> tuple[list[Line], int]:
