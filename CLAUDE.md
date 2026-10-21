@@ -43,6 +43,8 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 - Worker jobs are idempotent against redelivery: claim the row by status first, record the outcome on the row, never raise.
 - Ingestion URLs must match the allowlist (SSRF).
 - No secrets in the repo.
+- Implementation is done by the main agent. Branches, commits, rebases, pushes and PRs go to the `git-publisher` subagent (`.claude/agents/git-publisher.md`, Haiku), once tests and pyright pass and the user has said to publish. Give it the file list, branch name, PR summary and attribution lines; it has no conversation context. Pushing and merging still need the user's approval.
+- Before starting a new change, update `main` (`git fetch`, fast-forward) and create the branch from it.
 
 ## Status
 Teacher exam generator implemented (documents, generations, bank questions, question sets, PDF export) with a queue-driven worker, plus AWS deployment files. Legacy student module (M1-M4 of the SAA PRD) kept and tested.
