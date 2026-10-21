@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
+import { EmptyState, PageHeader } from "../components/Page";
 import { ErrorText } from "../components/Status";
 import { unwrap } from "../errors";
 import { api } from "../session";
@@ -13,23 +14,23 @@ export function SetsPage() {
 
   return (
     <>
-      <h1>Question sets</h1>
+      <PageHeader title="Question sets" subtitle="Saved selections of questions, ready to print for students or as an answer key." />
       <ErrorText error={sets.error} />
       {sets.data?.length === 0 ? (
-        <p>
-          No sets yet. Select questions on the <Link to="/questions">Questions</Link> page and save them as a set.
-        </p>
+        <EmptyState icon="📦" title="No sets yet">
+          Select questions on the <Link to="/questions">Questions</Link> page and save them as a set.
+        </EmptyState>
       ) : null}
-      <ul className="list">
+      <ul className="list tile-grid">
         {sets.data?.map((s) => (
-          <li key={s.id} className="card row">
-            <Link to={`/sets/${s.id}`} className="grow">
-              <strong>{s.title}</strong>
+          <li key={s.id}>
+            <Link to={`/sets/${s.id}`} className="card tile">
+              <strong className="tile-title">{s.title}</strong>
+              <span className="hint">
+                {s.question_count} question{s.question_count === 1 ? "" : "s"} &middot; updated{" "}
+                {new Date(s.updated_at).toLocaleDateString()}
+              </span>
             </Link>
-            <span className="hint">
-              {s.question_count} question{s.question_count === 1 ? "" : "s"} &middot; updated{" "}
-              {new Date(s.updated_at).toLocaleDateString()}
-            </span>
           </li>
         ))}
       </ul>

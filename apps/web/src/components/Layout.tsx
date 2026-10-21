@@ -22,12 +22,13 @@ function ApiHealth() {
   );
 }
 
-/** Nav icon map – simple emoji so no icon library is needed. */
+/** Nav icons: simple emoji so no icon library is needed. Drawn by CSS (`data-icon`) so they stay out of the link text. */
 const NAV_ICONS: Record<string, string> = {
   "/documents": "📄",
   "/generate":  "✨",
   "/questions": "📋",
   "/sets":      "📦",
+  "/exam":      "⏱️",
   "/exams":     "📝",
   "/users":     "👥",
   "/samples":   "🧪",
@@ -41,17 +42,15 @@ export function Layout() {
   return (
     <>
       <header className="topbar">
-        <span className="brand">🎓 ExamGen</span>
+        <span className="brand"><span aria-hidden="true">🎓</span> ExamGen</span>
         <nav aria-label="Main">
           {navFor(role).map((item) => (
-            <NavLink key={item.to} to={item.to}>
-              {NAV_ICONS[item.to] ?? ""} {item.label}
+            <NavLink key={item.to} to={item.to} data-icon={NAV_ICONS[item.to]}>
+              {item.label}
             </NavLink>
           ))}
         </nav>
-        {role ? (
-          <span className={`role-badge ${role}`}>{role}</span>
-        ) : null}
+        {role ? <span className={`role-badge ${role}`}>{role}</span> : null}
         <button type="button" className="link" onClick={() => void logout()}>
           Sign out
         </button>

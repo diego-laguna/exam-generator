@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 
 import { QuestionCard } from "../components/QuestionCard";
+import { EmptyState, PageHeader } from "../components/Page";
 import { ErrorText } from "../components/Status";
 import { unwrap } from "../errors";
 import { api } from "../session";
@@ -63,8 +64,11 @@ export function QuestionsPage() {
 
   return (
     <>
-      <h1>Questions</h1>
-      <div className="row filters">
+      <PageHeader
+        title="Questions"
+        subtitle="Your question bank. Select questions to save them as a set you can download as a PDF."
+      />
+      <div className="card row filters toolbar">
         <label>
           Document
           <select value={documentId} onChange={(e) => setDocumentId(e.target.value ? Number(e.target.value) : "")}>
@@ -84,13 +88,20 @@ export function QuestionsPage() {
             <option value="true_false">True / false</option>
           </select>
         </label>
+        <span className="grow" />
+        {questions.data ? (
+          <span className="hint">
+            {questions.data.length} question{questions.data.length === 1 ? "" : "s"}
+          </span>
+        ) : null}
       </div>
       <ErrorText error={questions.error ?? remove.error} />
 
       {selected.length > 0 ? (
         <form onSubmit={submit} className="card row sticky">
-          <strong>{selected.length} selected</strong>
+          <span className="count-pill">{selected.length} selected</span>
           <input
+            className="grow"
             aria-label="Set title"
             placeholder="Set title, e.g. Unit 1 quiz"
             value={title}
@@ -108,14 +119,15 @@ export function QuestionsPage() {
       ) : null}
 
       {questions.data?.length === 0 ? (
-        <p>
-          No questions yet. <Link to="/generate">Generate some</Link>.
-        </p>
+        <EmptyState icon="📋" title="No questions yet">
+          <Link to="/generate">Generate some</Link> from your documents.
+        </EmptyState>
       ) : null}
       {questions.data?.map((q) => (
         <QuestionCard
           key={q.id}
           question={q}
+          selected={selected.includes(q.id)}
           actions={
             <>
               <label className="check">

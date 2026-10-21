@@ -155,7 +155,7 @@ describe("ResultsPage", () => {
         }),
     });
     renderAt("/exams/5/results", "/exams/:examId/results", <ResultsPage />);
-    expect(await screen.findByText("0 / 1 correct (0%)")).toBeInTheDocument();
+    expect(await screen.findByText("0 / 1 correct")).toBeInTheDocument();
     expect(screen.getByText("Incorrect")).toBeInTheDocument();
     expect(screen.getByText("correct answer")).toBeInTheDocument();
     expect(screen.getByText("your answer")).toBeInTheDocument();

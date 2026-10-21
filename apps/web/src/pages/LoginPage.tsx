@@ -37,8 +37,8 @@ export function LoginPage() {
       <div className="login-card">
         <div className="login-brand">
           <span className="login-logo" aria-hidden="true">🎓</span>
-          <h1>ExamGen</h1>
-          <p>Sign in to your account</p>
+          <p className="login-name">ExamGen</p>
+          <h1>Sign in</h1>
         </div>
         <form onSubmit={submit} className="stack">
           <label>
@@ -63,8 +63,8 @@ export function LoginPage() {
             />
           </label>
           <ErrorText error={error} />
-          <button type="submit" disabled={busy} style={{ marginTop: "0.5rem" }}>
-            {busy ? "Signing in…" : "Sign in →"}
+          <button type="submit" disabled={busy} className="login-submit">
+            {busy ? "Signing in…" : <>Sign in <span aria-hidden="true">→</span></>}
           </button>
         </form>
       </div>

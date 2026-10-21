@@ -11,6 +11,9 @@ const STATUS_LABELS: Record<string, string> = {
   finished:    "Finished",
   failed:      "Failed",
   in_progress: "In progress",
+  submitted:   "Submitted",
+  open:        "Open",
+  ended:       "Ended",
 };
 
 export function ErrorText({ error }: { error: unknown }) {
@@ -23,7 +26,7 @@ export function ErrorText({ error }: { error: unknown }) {
   );
 }
 
-export function StatusBadge({ status }: { status: string }) {
-  const label = STATUS_LABELS[status] ?? status;
-  return <span className={`badge status-${status}`}>{label}</span>;
+/** `label` overrides the default text, e.g. "Ended early" with the `ended` colours. */
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
+  return <span className={`badge status-${status}`}>{label ?? STATUS_LABELS[status] ?? status}</span>;
 }

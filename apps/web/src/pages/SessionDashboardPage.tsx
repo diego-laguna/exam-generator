@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 
-import { ErrorText } from "../components/Status";
+import { EmptyState, PageHeader, Stat } from "../components/Page";
+import { ErrorText, StatusBadge } from "../components/Status";
 import { unwrap } from "../errors";
 import { formatClock, formatDateTime, useCountdown } from "../format";
 import { api } from "../session";
@@ -51,21 +52,12 @@ export function SessionDashboardPage() {
 
   return (
     <>
-      <h1>{session.exam_title}</h1>
-      <section className="card stack" aria-label="Session">
-        <div className="row">
-          <span className={open ? "badge status-ready" : "badge status-done"}>
-            {open ? "open" : session.closed_early ? "ended early" : "ended"}
-          </span>
-          {open && secondsLeft !== null ? (
-            <span className={secondsLeft <= 60 ? "timer warn" : "timer"}>
-              Time left: <strong>{formatClock(secondsLeft)}</strong>
-            </span>
-          ) : (
-            <span className="hint">Ended {formatDateTime(session.closed_early ? undefined : session.ends_at)}</span>
-          )}
-          <span className="grow" />
-          {open ? (
+      <PageHeader
+        title={session.exam_title}
+        back={{ to: "/exam", label: "Exam" }}
+        subtitle={`Started ${formatDateTime(session.started_at)} · ${session.duration_minutes} minute limit`}
+        actions={
+          open ? (
             <button
               type="button"
               className="danger"
@@ -74,13 +66,26 @@ export function SessionDashboardPage() {
             >
               End session now
             </button>
-          ) : null}
+          ) : null
+        }
+      />
+      <section className="card stack" aria-label="Session">
+        <div className="row">
+          <StatusBadge status={session.status} label={open ? undefined : session.closed_early ? "Ended early" : undefined} />
+          {open && secondsLeft !== null ? (
+            <span className={secondsLeft <= 60 ? "timer warn" : "timer"}>
+              Time left: <strong>{formatClock(secondsLeft)}</strong>
+            </span>
+          ) : (
+            <span className="hint">Ended {formatDateTime(session.closed_early ? undefined : session.ends_at)}</span>
+          )}
+          {open ? <span className="hint live">Updates every few seconds</span> : null}
         </div>
         <label>
-          Link for students ({session.duration_minutes} minute limit)
+          Link for students
           <div className="row">
             <input className="grow" readOnly value={session.join_url} onFocus={(e) => e.currentTarget.select()} />
-            <button type="button" onClick={() => void copy()}>
+            <button type="button" className="secondary" onClick={() => void copy()}>
               {copied ? "Copied" : "Copy link"}
             </button>
           </div>
@@ -88,70 +93,94 @@ export function SessionDashboardPage() {
         <ErrorText error={close.error} />
       </section>
 
-      <section className="card row" aria-label="Summary">
-        <div>
-          <strong>{session.participant_count}</strong> <span className="hint">joined</span>
-        </div>
-        <div>
-          <strong>{session.submitted_count}</strong> <span className="hint">submitted</span>
-        </div>
-        <div>
-          <strong>{average_score === null ? "–" : `${average_score} / ${session.question_count}`}</strong>{" "}
-          <span className="hint">average score</span>
-        </div>
-        {open ? <span className="hint grow">Updates every few seconds</span> : null}
+      <section className="stat-grid" aria-label="Summary">
+        <Stat label="Joined" value={session.participant_count} />
+        <Stat label="Submitted" value={session.submitted_count} />
+        <Stat
+          label="Average score"
+          value={average_score === null ? "–" : `${average_score} / ${session.question_count}`}
+        />
       </section>
 
-      <h2>Students</h2>
-      {participants.length === 0 ? <p>Nobody has joined yet. Share the link above.</p> : null}
+      <h2 className="section-title">Students</h2>
+      {participants.length === 0 ? (
+        <EmptyState icon="👥" title="Nobody has joined yet">
+          Share the link above.
+        </EmptyState>
+      ) : null}
       {participants.length > 0 ? (
+        <div className="card table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Status</th>
+                <th>Answered</th>
+                <th>Score</th>
+                <th>Submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {participants.map((p) => (
+                <tr key={p.id}>
+                  <td>
+                    <strong>{p.name}</strong>
+                  </td>
+                  <td>
+                    <StatusBadge status={p.status === "submitted" ? "submitted" : "in_progress"} />
+                  </td>
+                  <td>
+                    {p.answered_count} / {session.question_count}
+                  </td>
+                  <td>{p.score === null ? "–" : `${p.score} / ${session.question_count}`}</td>
+                  <td className="hint">{formatDateTime(p.submitted_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+
+      <h2 className="section-title">Questions</h2>
+      <div className="card table-card">
         <table>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Status</th>
+              <th>#</th>
+              <th>Question</th>
               <th>Answered</th>
-              <th>Score</th>
-              <th>Submitted</th>
+              <th>Correct</th>
             </tr>
           </thead>
           <tbody>
-            {participants.map((p) => (
-              <tr key={p.id}>
-                <td>{p.name}</td>
-                <td>{p.status === "submitted" ? "submitted" : "in progress"}</td>
-                <td>
-                  {p.answered_count} / {session.question_count}
-                </td>
-                <td>{p.score === null ? "–" : `${p.score} / ${session.question_count}`}</td>
-                <td>{formatDateTime(p.submitted_at)}</td>
-              </tr>
-            ))}
+            {questions.map((q) => {
+              const share = q.answered_count === 0 ? null : q.correct_count / q.answered_count;
+              return (
+                <tr key={q.key}>
+                  <td className="hint">{q.number}</td>
+                  <td>{q.stem}</td>
+                  <td>{q.answered_count}</td>
+                  <td className="cell-bar">
+                    {share === null ? (
+                      "–"
+                    ) : (
+                      <>
+                        <span className="progress-track" aria-hidden="true">
+                          <span
+                            className={`progress-fill ${share >= 0.75 ? "" : share >= 0.5 ? "mid" : "low"}`}
+                            style={{ width: `${Math.round(100 * share)}%` }}
+                          />
+                        </span>
+                        <span>{`${q.correct_count} (${Math.round(100 * share)}%)`}</span>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
-      ) : null}
-
-      <h2>Questions</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Question</th>
-            <th>Answered</th>
-            <th>Correct</th>
-          </tr>
-        </thead>
-        <tbody>
-          {questions.map((q) => (
-            <tr key={q.key}>
-              <td>{q.number}</td>
-              <td>{q.stem}</td>
-              <td>{q.answered_count}</td>
-              <td>{q.answered_count === 0 ? "–" : `${q.correct_count} (${Math.round((100 * q.correct_count) / q.answered_count)}%)`}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      </div>
     </>
   );
 }
