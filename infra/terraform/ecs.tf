@@ -97,7 +97,7 @@ resource "aws_ecs_task_definition" "migrate" {
     name        = "migrate"
     image       = local.image
     essential   = true
-    command     = ["sh", "-c", "alembic upgrade head && python -m scripts.seed_reference"]
+    command     = ["sh", "-c", "cd /app/packages/core && alembic upgrade head && cd /app/apps/api && python -m scripts.seed_reference"]
     environment = local.environment
     secrets     = local.db_secrets
     logConfiguration = {

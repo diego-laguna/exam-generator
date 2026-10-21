@@ -68,8 +68,8 @@ cp .env.example .env
 # 3. Start PostgreSQL with pgvector and the local queue (ElasticMQ)
 docker compose -f ../../compose.yaml up -d --wait
 
-# 4. Create the schema
-uv run alembic upgrade head
+# 4. Create the schema (the migrations live in packages/core; `just migrate` does steps 4 and 5)
+(cd ../../packages/core && uv run alembic upgrade head)
 
 # 5. Load exam reference data (domains, task statements) and the fixture question bank
 uv run python -m scripts.seed_reference
@@ -230,15 +230,14 @@ app/
   sources.py         /sources and /samples (student module)
   retrieval.py       Similarity search over chunks
   clock.py           Injectable server clock
-migrations/          Alembic migrations
 scripts/             Seed and admin-bootstrap scripts, fixture questions
 tests/               pytest suite
 Dockerfile           Production image (build context: the repository root)
 ```
 
-Shared code is in [`packages/core`](../../packages/core) (`exam_core`: settings, database engine and models, storage, queue messages, SSRF URL guard) and the queue consumer in [`apps/worker`](../worker). Alembic migrations stay here, next to `alembic.ini`, but they describe the models in `exam_core.models`.
+Shared code is in [`packages/core`](../../packages/core) (`exam_core`: settings, database engine and models, storage, queue messages, SSRF URL guard) and the queue consumer in [`apps/worker`](../worker). The Alembic migrations (`alembic.ini`, `migrations/`) are there too, next to the models they describe, because the schema belongs to neither service. The API image carries them and runs them in the one-off migrate task.
 
-To add a migration after changing models: `uv run alembic revision --autogenerate -m "describe change"`, review the generated file, then `uv run alembic upgrade head`.
+To add a migration after changing models, from `packages/core`: `uv run alembic revision --autogenerate -m "describe change"`, review the generated file, then `uv run alembic upgrade head` (or `just migrate`). Alembic reads the same settings as the apps (`DATABASE_URL` or `DB_*` in the environment; the local default needs nothing).
 
 ## Configuration
 

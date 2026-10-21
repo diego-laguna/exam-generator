@@ -8,7 +8,7 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 ## Stack
 - Python 3.14, FastAPI, managed with `uv`
 - PostgreSQL + pgvector (single DB for relational data and vectors), image `pgvector/pgvector:pg17`
-- SQLAlchemy 2 + Alembic (psycopg 3); migrations in `migrations/`
+- SQLAlchemy 2 + Alembic (psycopg 3); migrations in `packages/core/migrations/` (shared schema, run from `packages/core`)
 - Auth: PyJWT + pwdlib (argon2), settings via pydantic-settings
 - Embeddings: local `fastembed` (ONNX) with `BAAI/bge-small-en-v1.5`, 384 dims, in the worker (`worker/embedder.py`; the `Embedder` protocol and `EMBEDDING_DIM` are in `exam_core/embeddings.py`)
 - Ingestion (worker): httpx2 fetch + BeautifulSoup + heading-aware chunking (`worker/fetching.py`, `worker/chunking.py`, `worker/source_ingestion.py`); the SSRF URL guard is `exam_core/urls.py`
@@ -19,7 +19,7 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 
 ## Commands
 - DB and local queue: `just db-up` (or `docker compose up -d --wait` from the repo root)
-- Migrate: `uv run alembic upgrade head` (new: `uv run alembic revision --autogenerate -m "..."`)
+- Migrate: `just migrate` (or `uv run alembic upgrade head` from `packages/core`; new: `uv run alembic revision --autogenerate -m "..."` there)
 - Seed exam reference data + fixture questions: `uv run python -m scripts.seed_reference` (required after migrating)
 - Seed sample users: `uv run python -m scripts.seed` (alice=admin, bob/carol=students, dave=teacher)
 - Bootstrap an admin: `uv run python -m scripts.create_admin <username>` (prompts, or set `ADMIN_PASSWORD`)

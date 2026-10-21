@@ -43,6 +43,18 @@ variable "worker_desired_count" {
   default     = 0
 }
 
+variable "alert_email" {
+  description = "Email address for queue alarms (dead-letter queue not empty, backlog too old). Empty = no subscriber. AWS sends a confirmation link first."
+  type        = string
+  default     = ""
+}
+
+variable "queue_max_age_seconds" {
+  description = "Alarm when the oldest waiting job is older than this (for two 5-minute periods in a row)."
+  type        = number
+  default     = 600
+}
+
 variable "worker_cpu" {
   type    = number
   default = 1024

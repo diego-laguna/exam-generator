@@ -23,7 +23,7 @@ api-dev:
 
 # Apply database migrations and load reference data
 migrate:
-    cd apps/api && uv run alembic upgrade head && uv run python -m scripts.seed_reference
+    cd packages/core && uv run alembic upgrade head && cd ../../apps/api && uv run python -m scripts.seed_reference
 
 # Load sample users (development only)
 seed:
