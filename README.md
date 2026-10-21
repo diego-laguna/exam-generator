@@ -101,6 +101,75 @@ The job ends `done` if at least one question was produced, otherwise `failed`. I
 - Page and line numbers come from the extracted text layout. They match the printed page for ordinary text PDFs, but a PDF with front matter or unusual layout may number pages differently from the printed numbers.
 - The checks show that the quote exists and that a second reading agrees with the answer. They do not replace a teacher reviewing the questions.
 
+## Data model
+
+One PostgreSQL database; the tables are defined in [`packages/core/exam_core/models.py`](packages/core/exam_core/models.py) and shared by the API and the worker. There are two separate question models: the teacher's generated **bank question** and the student module's fixture **question**. They are not linked.
+
+### Teacher side: questions and question sets
+
+```mermaid
+erDiagram
+    users ||--o{ documents : owns
+    documents ||--o{ document_chunks : "split into"
+    users ||--o{ generation_jobs : starts
+    generation_jobs ||--o{ bank_questions : produces
+    documents |o--o{ bank_questions : "source (SET NULL on delete)"
+    users ||--o{ bank_questions : owns
+    users ||--o{ question_sets : owns
+    question_sets ||--o{ question_set_items : contains
+    bank_questions ||--o{ question_set_items : "used in"
+```
+
+**`bank_questions`**: one validated, generated question. Owned by a teacher; other teachers get 404.
+
+| Field | Meaning |
+|---|---|
+| `type` | `mcq` (options A-D) or `true_false` (A = True, B = False) |
+| `stem` | The question text |
+| `options` | JSON object `{"A": "...", "B": "...", ...}` |
+| `correct_option` | The key of the right option, one letter |
+| `explanation` | Why that option is right, based on the excerpt |
+| `citations` | JSON list of 1-3 snapshots: `{document, chunk_id, page, line_start, line_end, quote}`. They hold the file name and the quoted text, so they survive deleting the PDF |
+| `validation` | What the blind check saw: `{blind_answer, ambiguous, reasoning}` |
+| `model` | The model that wrote it |
+| `document_id`, `job_id` | Where it came from; set to null if the document or job is deleted. The question stays |
+| `owner_id`, `created_at` | Owner and creation time |
+
+**`question_sets`** (`title`, `owner_id`, timestamps) and **`question_set_items`** (`set_id`, `question_id`, `position`) form a saved, ordered selection. The same question can be in many sets. Deleting a question removes it from its sets; deleting a set keeps the questions. A set renders to two PDFs: the student sheet (no answers or sources) and the teacher key (answers, explanations, page and line sources).
+
+Upstream tables: **`documents`** (file name, size, SHA-256 unique per owner, `storage_key`, `page_count`, `status` `pending|processing|ready|failed`, `error`), **`document_chunks`** (`position`, `lines` as `[page, line, text]`, `content`, 384-dimension `embedding`) and **`generation_jobs`** (`document_ids`, `mcq_count`, `true_false_count`, `focus`, `status` `queued|running|done|failed`, `produced_count`, `error`).
+
+### Student side: exams and practice
+
+```mermaid
+erDiagram
+    users ||--o{ exams : takes
+    exams ||--o{ exam_questions : "serves (ordered)"
+    questions ||--o{ exam_questions : "appears in"
+    exams ||--o{ answers : records
+    questions ||--o{ answers : "answered by"
+    domains ||--o{ task_statements : has
+    domains ||--o{ questions : groups
+    task_statements ||--o{ questions : tags
+```
+
+**`questions`**: the fixture bank (20 hand-written SAA-C03 questions): `domain_id`, `task_statement_id`, `stem`, `options` (A-D), `correct_option`, `explanation`, `cited_chunk_ids`, `validation`, `model` (`fixture`). `domains` (ids 1-4 with their exam weight) and `task_statements` (codes such as `1.1`) are the reference data.
+
+**`exams`**: one exam or practice session of one student.
+
+| Field | Meaning |
+|---|---|
+| `mode` | `exam` (timed) or `practice` (untimed, feedback after each answer) |
+| `status` | `generating` -> `ready` -> `in_progress` -> `finished`, or `failed` (for example an empty bank) |
+| `requested_question_count`, `question_count` | What was asked for and what was actually served (the bank may hold fewer) |
+| `duration_minutes` | Exam mode only: 2 minutes per question |
+| `started_at`, `ends_at`, `submitted_at` | Set on the server clock: `ends_at = started_at + duration`; the client clock is never trusted |
+| `score` | Number of correct answers, set when finished (an expired exam is scored on next access) |
+
+**`exam_questions`** (`exam_id`, `question_id`, `position`) is the ordered list of questions an exam serves. **`answers`** (`exam_id`, `question_id`, `selected_option`, `answered_at`, `is_correct`) holds one row per answered question; answering again overwrites it, and answers are rejected after `ends_at`. Deleting an exam deletes its question list and answers.
+
+Visibility rules that follow from this: `GET /exams/{id}` never returns `correct_option` or `explanation` before results are unlocked (practice: always; exam: once finished or expired), and a student only sees their own exams.
+
 ## Docs
 
 - [`docs/PRD-exam-generator.md`](docs/PRD-exam-generator.md): current requirements
