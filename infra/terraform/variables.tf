@@ -43,6 +43,12 @@ variable "worker_desired_count" {
   default     = 0
 }
 
+variable "web_base_url" {
+  description = "Public origin of the web app (no trailing slash), used to build the exam-session join links. Empty = the API default (http://localhost:5173)."
+  type        = string
+  default     = ""
+}
+
 variable "alert_email" {
   description = "Email address for queue alarms (dead-letter queue not empty, backlog too old). Empty = no subscriber. AWS sends a confirmation link first."
   type        = string

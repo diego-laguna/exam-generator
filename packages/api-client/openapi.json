@@ -565,7 +565,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AnswerIn"
+                "$ref": "#/components/schemas/app__exams__AnswerIn"
               }
             }
           }
@@ -1466,6 +1466,527 @@
         }
       }
     },
+    "/api/v1/sample-exam": {
+      "get": {
+        "tags": [
+          "exam-sessions"
+        ],
+        "summary": "Show the built-in exam",
+        "description": "Teacher only. The built-in exam with its answers and explanations.\n\n**Use case:** Dave reads the questions on the screen before printing them or opening a session.",
+        "operationId": "get_sample_exam_api_v1_sample_exam_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SampleExamOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/sample-exam/pdf": {
+      "get": {
+        "tags": [
+          "exam-sessions"
+        ],
+        "summary": "Download the built-in exam as a PDF",
+        "description": "Teacher only. `version=student` (default) has the questions and a name line; `version=teacher` adds the answer key and explanations.\n\n**Use case:** Dave prints the student version for the class and keeps the teacher version to grade by hand.",
+        "operationId": "download_sample_exam_api_v1_sample_exam_pdf_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "student",
+                "teacher"
+              ],
+              "type": "string",
+              "default": "student",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/pdf": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exam-sessions": {
+      "get": {
+        "tags": [
+          "exam-sessions"
+        ],
+        "summary": "List my exam sessions",
+        "description": "Teacher only. The caller's sessions, newest first, with how many students joined and submitted.\n\n**Use case:** Dave reopens yesterday's session to see the final results.",
+        "operationId": "list_sessions_api_v1_exam_sessions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ExamSessionOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Sessions Api V1 Exam Sessions Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "exam-sessions"
+        ],
+        "summary": "Start an exam session",
+        "description": "Teacher only. Opens the exam to students for `duration_minutes` (the time limit is fixed now and counts from this call, on the server clock). The response has the `join_url` to share with the class.\n\n**Use case:** Dave sends `{\"exam_id\": \"sample\", \"duration_minutes\": 30}` and posts the returned link in the class chat.",
+        "operationId": "start_session_api_v1_exam_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamSessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/exam-sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "exam-sessions"
+        ],
+        "summary": "Session dashboard",
+        "description": "Teacher only. Who joined, who submitted, scores, the average and, per question, how many answered and how many got it right. Poll this to keep a dashboard current.\n\n**Use case:** While the class is writing, Dave watches the submitted count climb and sees which question most students miss.",
+        "operationId": "session_dashboard_api_v1_exam_sessions__session_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDashboard"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/exam-sessions/{session_id}/close": {
+      "post": {
+        "tags": [
+          "exam-sessions"
+        ],
+        "summary": "End a session early",
+        "description": "Teacher only. Stops accepting answers now. Students who have not submitted are scored on the answers they saved. Closing an ended session changes nothing.\n\n**Use case:** Everyone is done after 20 of the 30 minutes, so Dave closes the session to freeze the results.",
+        "operationId": "close_session_api_v1_exam_sessions__session_id__close_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamSessionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join/{token}": {
+      "get": {
+        "tags": [
+          "join"
+        ],
+        "summary": "Open a join link",
+        "description": "Public. What the student sees before entering a name: the exam title, the number of questions and the time limit. No questions are returned.\n\n**Use case:** Ana opens the link Dave posted; the page shows \"Sample exam, 6 questions, 30 minutes\" and a name box.",
+        "operationId": "join_info_api_v1_join__token__get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join/{token}/participants": {
+      "post": {
+        "tags": [
+          "join"
+        ],
+        "summary": "Join a session",
+        "description": "Public. Registers the student under a name and returns a secret `participant_token`; the browser keeps it and sends it as `X-Participant-Token` on later calls. Fails if the session is over, the name is taken in this session or the session is full.\n\n**Use case:** Ana types her name and presses Start; the page stores the token so a reload puts her back in her exam.",
+        "operationId": "join_session_api_v1_join__token__participants_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join/{token}/me": {
+      "get": {
+        "tags": [
+          "join"
+        ],
+        "summary": "My exam",
+        "description": "Public, with the participant token. The questions (without answers), the answers saved so far and the deadline. After submitting, or once time is up, `result` has the score and the review with correct answers and explanations.\n\n**Use case:** Ana reloads the page halfway through; this call restores her questions, her ticked options and the countdown.",
+        "operationId": "my_exam_api_v1_join__token__me_get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          },
+          {
+            "name": "X-Participant-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 128,
+              "title": "X-Participant-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantState"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join/{token}/answers/{question_key}": {
+      "put": {
+        "tags": [
+          "join"
+        ],
+        "summary": "Save an answer",
+        "description": "Public, with the participant token. Saves or replaces the answer to one question. Rejected after the session ended or after submitting. The server clock decides; the browser timer is only a display.\n\n**Use case:** Ana ticks option B on question 3; the page saves it, so a crash does not lose her work.",
+        "operationId": "save_answer_api_v1_join__token__answers__question_key__put",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          },
+          {
+            "name": "question_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Question Key"
+            }
+          },
+          {
+            "name": "X-Participant-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 128,
+              "title": "X-Participant-Token"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__exam_sessions__AnswerIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/join/{token}/submit": {
+      "post": {
+        "tags": [
+          "join"
+        ],
+        "summary": "Submit the exam",
+        "description": "Public, with the participant token. Ends the student's exam and returns the score and the review at once. The teacher's dashboard shows the result on its next refresh. Unanswered questions count as wrong. Submitting twice returns 409.\n\n**Use case:** Ana presses Submit and immediately sees \"5 of 6\" with the right answer and explanation for the one she missed.",
+        "operationId": "submit_api_v1_join__token__submit_post",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          },
+          {
+            "name": "X-Participant-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 10,
+              "maxLength": 128,
+              "title": "X-Participant-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "tags": [
@@ -1506,25 +2027,6 @@
   },
   "components": {
     "schemas": {
-      "AnswerIn": {
-        "properties": {
-          "selected_option": {
-            "type": "string",
-            "enum": [
-              "A",
-              "B",
-              "C",
-              "D"
-            ],
-            "title": "Selected Option"
-          }
-        },
-        "type": "object",
-        "required": [
-          "selected_option"
-        ],
-        "title": "AnswerIn"
-      },
       "AnswerOut": {
         "properties": {
           "question_id": {
@@ -2086,6 +2588,80 @@
         "title": "ExamQuestionOut",
         "description": "A question as shown while taking the exam. Never carries the answer."
       },
+      "ExamSessionOut": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "exam_id": {
+            "type": "string",
+            "title": "Exam Id"
+          },
+          "exam_title": {
+            "type": "string",
+            "title": "Exam Title"
+          },
+          "question_count": {
+            "type": "integer",
+            "title": "Question Count"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "title": "Duration Minutes"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "ended"
+            ],
+            "title": "Status"
+          },
+          "closed_early": {
+            "type": "boolean",
+            "title": "Closed Early"
+          },
+          "join_url": {
+            "type": "string",
+            "title": "Join Url"
+          },
+          "participant_count": {
+            "type": "integer",
+            "title": "Participant Count"
+          },
+          "submitted_count": {
+            "type": "integer",
+            "title": "Submitted Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "exam_id",
+          "exam_title",
+          "question_count",
+          "duration_minutes",
+          "started_at",
+          "ends_at",
+          "status",
+          "closed_early",
+          "join_url",
+          "participant_count",
+          "submitted_count"
+        ],
+        "title": "ExamSessionOut"
+      },
       "ExamStatus": {
         "type": "string",
         "enum": [
@@ -2333,6 +2909,207 @@
         ],
         "title": "JobStatus"
       },
+      "JoinIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "JoinIn"
+      },
+      "JoinInfo": {
+        "properties": {
+          "exam_title": {
+            "type": "string",
+            "title": "Exam Title"
+          },
+          "question_count": {
+            "type": "integer",
+            "title": "Question Count"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "title": "Duration Minutes"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "ended"
+            ],
+            "title": "Status"
+          },
+          "server_now": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Server Now"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exam_title",
+          "question_count",
+          "duration_minutes",
+          "ends_at",
+          "status",
+          "server_now"
+        ],
+        "title": "JoinInfo"
+      },
+      "JoinedOut": {
+        "properties": {
+          "participant_token": {
+            "type": "string",
+            "title": "Participant Token"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participant_token",
+          "name"
+        ],
+        "title": "JoinedOut"
+      },
+      "ParticipantRow": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "submitted"
+            ],
+            "title": "Status"
+          },
+          "answered_count": {
+            "type": "integer",
+            "title": "Answered Count"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "joined_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Joined At"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "answered_count",
+          "score",
+          "joined_at",
+          "submitted_at"
+        ],
+        "title": "ParticipantRow"
+      },
+      "ParticipantState": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "in_progress",
+              "submitted"
+            ],
+            "title": "Status"
+          },
+          "ends_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ends At"
+          },
+          "server_now": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Server Now"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/StudentQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "answers": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "ends_at",
+          "server_now",
+          "questions",
+          "answers",
+          "result"
+        ],
+        "title": "ParticipantState"
+      },
       "QuestionSetIn": {
         "properties": {
           "title": {
@@ -2435,6 +3212,39 @@
           "updated_at"
         ],
         "title": "QuestionSetSummary"
+      },
+      "QuestionStat": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number"
+          },
+          "stem": {
+            "type": "string",
+            "title": "Stem"
+          },
+          "answered_count": {
+            "type": "integer",
+            "title": "Answered Count"
+          },
+          "correct_count": {
+            "type": "integer",
+            "title": "Correct Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "number",
+          "stem",
+          "answered_count",
+          "correct_count"
+        ],
+        "title": "QuestionStat"
       },
       "QuestionType": {
         "type": "string",
@@ -2574,6 +3384,59 @@
         ],
         "title": "ResultsOut"
       },
+      "ReviewItem": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "stem": {
+            "type": "string",
+            "title": "Stem"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Options"
+          },
+          "selected_option": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Option"
+          },
+          "correct_option": {
+            "type": "string",
+            "title": "Correct Option"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "is_correct": {
+            "type": "boolean",
+            "title": "Is Correct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "stem",
+          "options",
+          "selected_option",
+          "correct_option",
+          "explanation",
+          "is_correct"
+        ],
+        "title": "ReviewItem"
+      },
       "Role": {
         "type": "string",
         "enum": [
@@ -2582,6 +3445,82 @@
           "teacher"
         ],
         "title": "Role"
+      },
+      "SampleExamOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "question_count": {
+            "type": "integer",
+            "title": "Question Count"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/SampleExamQuestionOut"
+            },
+            "type": "array",
+            "title": "Questions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "question_count",
+          "questions"
+        ],
+        "title": "SampleExamOut"
+      },
+      "SampleExamQuestionOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "mcq",
+              "true_false"
+            ],
+            "title": "Type"
+          },
+          "stem": {
+            "type": "string",
+            "title": "Stem"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Options"
+          },
+          "correct_option": {
+            "type": "string",
+            "title": "Correct Option"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type",
+          "stem",
+          "options",
+          "correct_option",
+          "explanation"
+        ],
+        "title": "SampleExamQuestionOut"
       },
       "SampleIn": {
         "properties": {
@@ -2678,6 +3617,98 @@
         ],
         "title": "SamplesCreated"
       },
+      "SessionDashboard": {
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/ExamSessionOut"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/ParticipantRow"
+            },
+            "type": "array",
+            "title": "Participants"
+          },
+          "average_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Score"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionStat"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "server_now": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Server Now"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session",
+          "participants",
+          "average_score",
+          "questions",
+          "server_now"
+        ],
+        "title": "SessionDashboard"
+      },
+      "SessionIn": {
+        "properties": {
+          "exam_id": {
+            "type": "string",
+            "title": "Exam Id",
+            "default": "sample"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "maximum": 1440.0,
+            "minimum": 1.0,
+            "title": "Duration Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "duration_minutes"
+        ],
+        "title": "SessionIn"
+      },
+      "SessionResult": {
+        "properties": {
+          "score": {
+            "type": "integer",
+            "title": "Score"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "review": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewItem"
+            },
+            "type": "array",
+            "title": "Review"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "total",
+          "review"
+        ],
+        "title": "SessionResult"
+      },
       "SourceCreate": {
         "properties": {
           "url": {
@@ -2773,6 +3804,42 @@
           "domains"
         ],
         "title": "StatsOut"
+      },
+      "StudentQuestion": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "mcq",
+              "true_false"
+            ],
+            "title": "Type"
+          },
+          "stem": {
+            "type": "string",
+            "title": "Stem"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "type",
+          "stem",
+          "options"
+        ],
+        "title": "StudentQuestion",
+        "description": "A question as the student sees it: never the answer."
       },
       "TaskStatementStats": {
         "properties": {
@@ -2936,6 +4003,40 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "app__exam_sessions__AnswerIn": {
+        "properties": {
+          "selected_option": {
+            "type": "string",
+            "maxLength": 1,
+            "minLength": 1,
+            "title": "Selected Option"
+          }
+        },
+        "type": "object",
+        "required": [
+          "selected_option"
+        ],
+        "title": "AnswerIn"
+      },
+      "app__exams__AnswerIn": {
+        "properties": {
+          "selected_option": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "title": "Selected Option"
+          }
+        },
+        "type": "object",
+        "required": [
+          "selected_option"
+        ],
+        "title": "AnswerIn"
       }
     },
     "securitySchemes": {
@@ -2974,6 +4075,14 @@
     {
       "name": "question-sets",
       "description": "Saved selections of questions and their printable PDFs."
+    },
+    {
+      "name": "exam-sessions",
+      "description": "Teacher: download the built-in exam, open timed sessions, watch the results dashboard."
+    },
+    {
+      "name": "join",
+      "description": "Students (no account): open a session link, answer, submit, see the result."
     },
     {
       "name": "exams",

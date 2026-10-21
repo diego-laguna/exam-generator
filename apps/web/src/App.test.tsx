@@ -40,7 +40,7 @@ describe("role based navigation", () => {
   it("teachers get the teaching screens, sources and stats", async () => {
     renderApp("/", "teacher");
     expect(await screen.findByRole("heading", { name: "Documents" })).toBeInTheDocument();
-    expect(navLinks()).toEqual(["Documents", "Generate", "Questions", "Sets", "Sources", "My stats"]);
+    expect(navLinks()).toEqual(["Documents", "Generate", "Questions", "Sets", "Exam", "Sources", "My stats"]);
   });
 
   it("students start on their exams", async () => {

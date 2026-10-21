@@ -2,6 +2,7 @@ from fastapi import APIRouter, FastAPI
 
 from app.auth import router as auth_router
 from app.documents import router as documents_router
+from app.exam_sessions import join_router, teacher_router as exam_sessions_router
 from app.exams import router as exams_router
 from app.generations import router as generations_router
 from app.question_sets import router as question_sets_router
@@ -26,6 +27,8 @@ TAGS = [
     {"name": "generations", "description": "Background jobs that generate cited questions."},
     {"name": "questions", "description": "The teacher's generated question bank."},
     {"name": "question-sets", "description": "Saved selections of questions and their printable PDFs."},
+    {"name": "exam-sessions", "description": "Teacher: download the built-in exam, open timed sessions, watch the results dashboard."},
+    {"name": "join", "description": "Students (no account): open a session link, answer, submit, see the result."},
     {"name": "exams", "description": "Student exams and practice sessions."},
     {"name": "stats", "description": "Student accuracy by domain."},
     {"name": "sources", "description": "Admin: AWS documentation sources and sample questions."},
@@ -53,6 +56,8 @@ api_v1.include_router(documents_router)
 api_v1.include_router(generations_router)
 api_v1.include_router(questions_router)
 api_v1.include_router(question_sets_router)
+api_v1.include_router(exam_sessions_router)
+api_v1.include_router(join_router)
 # Also under /api/v1, so a browser app that only reaches /api/* (one origin, as behind a proxy)
 # can show whether the API is up. The unversioned /health below is for load balancers and probes.
 api_v1.get("/health", tags=["health"])(health)

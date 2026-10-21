@@ -1,4 +1,4 @@
-"""Printable PDFs for a question set: a student sheet (no answers) or a teacher key."""
+"""Printable PDFs for a question set or exam: a student sheet (no answers) or a teacher key."""
 
 import io
 from collections.abc import Sequence
@@ -11,9 +11,13 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer
 
+from app.sample_exam import ExamQuestion
 from exam_core.models import BankQuestion, QuestionType
 
 Version = Literal["student", "teacher"]
+
+
+PrintableQuestion = BankQuestion | ExamQuestion  # a stored question or a built-in exam question
 
 
 def _citation_text(c: dict) -> str:
@@ -37,7 +41,7 @@ def _footer(title: str):
     return draw
 
 
-def render_question_set_pdf(title: str, questions: Sequence[BankQuestion], version: Version) -> bytes:
+def render_question_set_pdf(title: str, questions: Sequence[PrintableQuestion], version: Version) -> bytes:
     styles = getSampleStyleSheet()
     h1 = styles["Title"]
     body = styles["BodyText"]

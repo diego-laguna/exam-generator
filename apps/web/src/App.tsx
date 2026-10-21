@@ -5,12 +5,15 @@ import { Layout } from "./components/Layout";
 import { RoleGate } from "./components/RoleGate";
 import { DocumentsPage } from "./pages/DocumentsPage";
 import { ExamPage } from "./pages/ExamPage";
+import { ExamSessionsPage } from "./pages/ExamSessionsPage";
 import { ExamsPage } from "./pages/ExamsPage";
 import { GeneratePage } from "./pages/GeneratePage";
+import { JoinPage } from "./pages/JoinPage";
 import { LoginPage } from "./pages/LoginPage";
 import { QuestionsPage } from "./pages/QuestionsPage";
 import { ResultsPage } from "./pages/ResultsPage";
 import { SamplesPage } from "./pages/SamplesPage";
+import { SessionDashboardPage } from "./pages/SessionDashboardPage";
 import { SetDetailPage } from "./pages/SetDetailPage";
 import { SetsPage } from "./pages/SetsPage";
 import { SourcesPage } from "./pages/SourcesPage";
@@ -37,6 +40,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      {/* Students open this from the teacher's link; no account needed. */}
+      <Route path="/join/:token" element={<JoinPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Home />} />
 
@@ -50,6 +55,8 @@ export function App() {
           <Route path="/questions" element={<QuestionsPage />} />
           <Route path="/sets" element={<SetsPage />} />
           <Route path="/sets/:setId" element={<SetDetailPage />} />
+          <Route path="/exam" element={<ExamSessionsPage />} />
+          <Route path="/sessions/:sessionId" element={<SessionDashboardPage />} />
         </Route>
 
         <Route element={<RoleGate roles={["student"]} />}>

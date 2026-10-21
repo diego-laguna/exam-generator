@@ -10,6 +10,13 @@ PUBLIC = {
     "/api/v1/health",
     "/api/v1/auth/login",
     "/api/v1/auth/refresh",
+    # Students join a session without an account: the token in the URL (and the participant token
+    # header) is the credential. tests/test_exam_sessions.py covers them.
+    "/api/v1/join/{token}",
+    "/api/v1/join/{token}/participants",
+    "/api/v1/join/{token}/me",
+    "/api/v1/join/{token}/answers/{question_key}",
+    "/api/v1/join/{token}/submit",
 }
 
 
