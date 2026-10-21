@@ -43,7 +43,7 @@ Requirements (not auto-loaded; read the relevant section first): `docs/PRD-exam-
 - Worker jobs are idempotent against redelivery: claim the row by status first, record the outcome on the row, never raise.
 - Ingestion URLs must match the allowlist (SSRF).
 - No secrets in the repo.
-- Implementation is done by the main agent. Branches, commits, rebases, pushes and PRs go to the `git-publisher` subagent (`.claude/agents/git-publisher.md`, Haiku), once tests and pyright pass and the user has said to publish. Give it the file list, branch name, PR summary and attribution lines; it has no conversation context. Pushing and merging still need the user's approval.
+- Agent team (`.claude/agents/`): `orchestrator` (run as the main session with `claude --agent orchestrator`) ideates with the user, keeps `docs/BACKLOG.md` prioritized and delegates; `api-dev` owns `apps/api`, `packages/core` and `packages/api-client`; `worker-dev` owns `apps/worker`; `web-dev` owns `apps/web`; `infra-dev` owns `infra/terraform`, the Dockerfiles, `compose.yaml`, CI and `docs/DEPLOY.md` (offline checks only, never applies). Specialists stay in their area, report cross-area needs instead of crossing over, and do not commit. In a plain session the main agent implements directly. Branches, commits, rebases, pushes and PRs go to the `git-publisher` subagent (Haiku), once tests and pyright pass and the user has said to publish. Give it the file list, branch name, PR summary and attribution lines; it has no conversation context. Pushing and merging still need the user's approval.
 - Before starting a new change, update `main` (`git fetch`, fast-forward) and create the branch from it.
 
 ## Status
