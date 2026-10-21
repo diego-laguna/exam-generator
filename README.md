@@ -170,6 +170,18 @@ erDiagram
 
 Visibility rules that follow from this: `GET /exams/{id}` never returns `correct_option` or `explanation` before results are unlocked (practice: always; exam: once finished or expired), and a student only sees their own exams.
 
+### Exam sessions: the built-in exam in class
+
+A teacher can open the built-in exam (its questions are code in `apps/api/app/sample_exam.py`, not table rows) to students for a fixed time. Three tables hold a session:
+
+| Table | Fields |
+|---|---|
+| `exam_sessions` | `owner_id`, `exam_id` (`sample`), secret `join_token` (the link), `duration_minutes`, `started_at`, `ends_at` (= start + duration, server clock), `closed_at` (set if the teacher ends it early) |
+| `session_participants` | `session_id`, `name` (unique per session), `token_hash` (SHA-256 of the secret the student's browser keeps), `joined_at`, `submitted_at`, `score` |
+| `session_answers` | `participant_id`, `question_key` (`q1`...), `selected_option`, `answered_at`, `is_correct` (one row per answered question; answering again overwrites) |
+
+Students need no account. They get their result when they submit; if they never do, they are scored on the answers saved so far once the session is over. The teacher's dashboard reads these tables (joined, submitted, scores, average, per-question correct rate).
+
 ## Docs
 
 - [`docs/PRD-exam-generator.md`](docs/PRD-exam-generator.md): current requirements

@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 
 import { QuestionCard } from "../components/QuestionCard";
 import { ErrorText } from "../components/Status";
+import { saveBlob } from "../download";
 import { unwrap } from "../errors";
 import { api } from "../session";
 
@@ -115,15 +116,4 @@ export function SetDetailPage() {
       ))}
     </>
   );
-}
-
-function saveBlob(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename.replace(/[^\w.-]+/g, "-");
-  document.body.append(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }

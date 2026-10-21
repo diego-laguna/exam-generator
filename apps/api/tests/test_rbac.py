@@ -46,6 +46,12 @@ ENDPOINTS = [
     ("PUT", "/question-sets/1", {TEACHER}),
     ("DELETE", "/question-sets/1", {TEACHER}),
     ("GET", "/question-sets/1/pdf", {TEACHER}),
+    ("GET", "/sample-exam", {TEACHER}),
+    ("GET", "/sample-exam/pdf", {TEACHER}),
+    ("POST", "/exam-sessions", {TEACHER}),
+    ("GET", "/exam-sessions", {TEACHER}),
+    ("GET", "/exam-sessions/1", {TEACHER}),
+    ("POST", "/exam-sessions/1/close", {TEACHER}),
 ]
 
 USERS = {
@@ -83,10 +89,15 @@ def test_public_endpoints_need_no_token():
     assert client.post(f"{P}/auth/login", data={"username": "x", "password": "y"}).status_code == 401
 
 
+def routes_under(prefix):
+    return [(m, getattr(r, "path")) for r in app.routes for m in getattr(r, "methods", set()) if getattr(r, "path", "").startswith(prefix)]
+
+
 def test_all_v1_routes_are_covered_by_the_matrix():
     """Fails when a new endpoint is added without an entry in ENDPOINTS."""
     covered = {(m, P + p) for m, p, _ in ENDPOINTS}
     public = {"/health", f"{P}/health", f"{P}/auth/login", f"{P}/auth/refresh"}
+    public |= {path for _, path in routes_under(f"{P}/join")}
     routes = set()
     for r in app.routes:
         path = getattr(r, "path", "")

@@ -138,6 +138,35 @@ curl -s "$API/question-sets/$SET/pdf?version=teacher" -H "$AUTH" -o quiz-answer-
 
 A citation looks like `{"document": "lesson.pdf", "page": 3, "line_start": 12, "line_end": 14, "quote": "..."}`. Lines are the non-empty text lines of the page, numbered from 1 in reading order. Questions that fail the checks are discarded, so a job can produce fewer questions than requested (`produced_count`).
 
+#### Download the built-in exam and run a timed session
+
+A fixed, built-in exam (6 questions) lets you try the whole classroom flow without generating anything. In the web app: **Exam** in the menu.
+
+```bash
+curl -s "$API/sample-exam/pdf" -H "$AUTH" -o exam-students.pdf                       # questions only
+curl -s "$API/sample-exam/pdf?version=teacher" -H "$AUTH" -o exam-answer-key.pdf     # questions, answers, explanations
+
+# Open the exam to students for 30 minutes (the clock starts now); share the join_url
+curl -s -X POST $API/exam-sessions -H "$AUTH" -H 'Content-Type: application/json' \
+  -d '{"exam_id": "sample", "duration_minutes": 30}' | jq '{id, join_url, ends_at}'
+
+# Live dashboard: who joined, who submitted, scores, average, per-question results
+curl -s $API/exam-sessions/1 -H "$AUTH" | jq '{participants, average_score}'
+curl -s -X POST $API/exam-sessions/1/close -H "$AUTH"     # end early (optional)
+```
+
+Students need no account. They open the `join_url` (`/join/<token>` in the web app), type a name and answer; each answer is saved on the server as they go. **Submit** shows the score, the correct answers and the explanations immediately, and the teacher's dashboard (it refreshes every 5 seconds) shows the result. The time limit is enforced on the server clock: answers after `ends_at` are rejected, and students who never pressed Submit are scored on what they saved. The same flow over the API, as a student would do it:
+
+```bash
+J=<token from the join_url>
+P=$(curl -s -X POST $API/join/$J/participants -H 'Content-Type: application/json' -d '{"name": "Ana"}' | jq -r .participant_token)
+curl -s $API/join/$J/me -H "X-Participant-Token: $P" | jq '.questions'                    # no answers inside
+curl -s -X PUT $API/join/$J/answers/q1 -H "X-Participant-Token: $P" -H 'Content-Type: application/json' -d '{"selected_option": "B"}'
+curl -s -X POST $API/join/$J/submit -H "X-Participant-Token: $P" | jq '{score, total}'
+```
+
+The join link is the credential: anyone who has it can join until the session ends (names must be unique within a session, at most `SESSION_MAX_PARTICIPANTS`), so share it only with the class. There is no rate limiting on these public endpoints yet.
+
 ### As a student (legacy module)
 
 A short practice session using `curl` and `jq`:
@@ -172,9 +201,9 @@ Using `"mode": "exam"` instead gives a timed exam: 2 minutes per question (130 m
 
 | Role | Access |
 |---|---|
-| Anyone | `GET /health`, `POST /auth/login`, `POST /auth/refresh` |
+| Anyone | `GET /health`, `POST /auth/login`, `POST /auth/refresh`, and `/join/{token}/...` (exam-session students; the secret link and a per-student token are the credentials) |
 | Any signed-in user | `POST /auth/logout`, `GET /sources`, `GET /me/stats` |
-| `teacher` | `/documents`, `/generations`, `/questions`, `/question-sets` (you can only see your own) |
+| `teacher` | `/documents`, `/generations`, `/questions`, `/question-sets`, `/sample-exam`, `/exam-sessions` (you can only see your own) |
 | `student` | Everything under `/exams` (you can only see your own exams) |
 | `admin` | `POST /users` (including teachers), `POST`/`DELETE /sources`, `POST /samples` |
 
@@ -226,6 +255,8 @@ app/
   generations.py     /generations (jobs)
   questions.py       /questions (the teacher's bank)
   question_sets.py   /question-sets and PDF download
+  exam_sessions.py   Built-in exam PDFs, timed sessions, the student /join routes and the dashboard
+  sample_exam.py     The built-in exam (questions as code)
   pdf_export.py      Printable student sheet and teacher answer key
   sources.py         /sources and /samples (student module)
   retrieval.py       Similarity search over chunks
@@ -259,6 +290,8 @@ Settings come from environment variables or a `.env` file (see `.env.example`).
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
 | `EXAM_MINUTES_PER_QUESTION` | `2` | Exam-mode time limit per question |
+| `WEB_BASE_URL` | `http://localhost:5173` | Origin of the web app, used to build the session `join_url` (no trailing slash). Set it to the public URL in production |
+| `SESSION_MAX_MINUTES` / `SESSION_MAX_PARTICIPANTS` | `480` / `300` | Longest session a teacher can start; students per session |
 | `INGESTION_ALLOWED_HOSTS` | AWS docs hosts | Hosts that sources may come from (JSON list) |
 
 ## Deploying to AWS

@@ -564,6 +564,232 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sample-exam": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Show the built-in exam
+         * @description Teacher only. The built-in exam with its answers and explanations.
+         *
+         *     **Use case:** Dave reads the questions on the screen before printing them or opening a session.
+         */
+        get: operations["get_sample_exam_api_v1_sample_exam_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sample-exam/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download the built-in exam as a PDF
+         * @description Teacher only. `version=student` (default) has the questions and a name line; `version=teacher` adds the answer key and explanations.
+         *
+         *     **Use case:** Dave prints the student version for the class and keeps the teacher version to grade by hand.
+         */
+        get: operations["download_sample_exam_api_v1_sample_exam_pdf_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exam-sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List my exam sessions
+         * @description Teacher only. The caller's sessions, newest first, with how many students joined and submitted.
+         *
+         *     **Use case:** Dave reopens yesterday's session to see the final results.
+         */
+        get: operations["list_sessions_api_v1_exam_sessions_get"];
+        put?: never;
+        /**
+         * Start an exam session
+         * @description Teacher only. Opens the exam to students for `duration_minutes` (the time limit is fixed now and counts from this call, on the server clock). The response has the `join_url` to share with the class.
+         *
+         *     **Use case:** Dave sends `{"exam_id": "sample", "duration_minutes": 30}` and posts the returned link in the class chat.
+         */
+        post: operations["start_session_api_v1_exam_sessions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exam-sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Session dashboard
+         * @description Teacher only. Who joined, who submitted, scores, the average and, per question, how many answered and how many got it right. Poll this to keep a dashboard current.
+         *
+         *     **Use case:** While the class is writing, Dave watches the submitted count climb and sees which question most students miss.
+         */
+        get: operations["session_dashboard_api_v1_exam_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/exam-sessions/{session_id}/close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * End a session early
+         * @description Teacher only. Stops accepting answers now. Students who have not submitted are scored on the answers they saved. Closing an ended session changes nothing.
+         *
+         *     **Use case:** Everyone is done after 20 of the 30 minutes, so Dave closes the session to freeze the results.
+         */
+        post: operations["close_session_api_v1_exam_sessions__session_id__close_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/join/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Open a join link
+         * @description Public. What the student sees before entering a name: the exam title, the number of questions and the time limit. No questions are returned.
+         *
+         *     **Use case:** Ana opens the link Dave posted; the page shows "Sample exam, 6 questions, 30 minutes" and a name box.
+         */
+        get: operations["join_info_api_v1_join__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/join/{token}/participants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Join a session
+         * @description Public. Registers the student under a name and returns a secret `participant_token`; the browser keeps it and sends it as `X-Participant-Token` on later calls. Fails if the session is over, the name is taken in this session or the session is full.
+         *
+         *     **Use case:** Ana types her name and presses Start; the page stores the token so a reload puts her back in her exam.
+         */
+        post: operations["join_session_api_v1_join__token__participants_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/join/{token}/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * My exam
+         * @description Public, with the participant token. The questions (without answers), the answers saved so far and the deadline. After submitting, or once time is up, `result` has the score and the review with correct answers and explanations.
+         *
+         *     **Use case:** Ana reloads the page halfway through; this call restores her questions, her ticked options and the countdown.
+         */
+        get: operations["my_exam_api_v1_join__token__me_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/join/{token}/answers/{question_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save an answer
+         * @description Public, with the participant token. Saves or replaces the answer to one question. Rejected after the session ended or after submitting. The server clock decides; the browser timer is only a display.
+         *
+         *     **Use case:** Ana ticks option B on question 3; the page saves it, so a crash does not lose her work.
+         */
+        put: operations["save_answer_api_v1_join__token__answers__question_key__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/join/{token}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Submit the exam
+         * @description Public, with the participant token. Ends the student's exam and returns the score and the review at once. The teacher's dashboard shows the result on its next refresh. Unanswered questions count as wrong. Submitting twice returns 409.
+         *
+         *     **Use case:** Ana presses Submit and immediately sees "5 of 6" with the right answer and explanation for the one she missed.
+         */
+        post: operations["submit_api_v1_join__token__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -614,14 +840,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** AnswerIn */
-        AnswerIn: {
-            /**
-             * Selected Option
-             * @enum {string}
-             */
-            selected_option: "A" | "B" | "C" | "D";
-        };
         /** AnswerOut */
         AnswerOut: {
             /** Question Id */
@@ -807,6 +1025,42 @@ export interface components {
             /** Selected Option */
             selected_option: string | null;
         };
+        /** ExamSessionOut */
+        ExamSessionOut: {
+            /** Id */
+            id: number;
+            /** Exam Id */
+            exam_id: string;
+            /** Exam Title */
+            exam_title: string;
+            /** Question Count */
+            question_count: number;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "ended";
+            /** Closed Early */
+            closed_early: boolean;
+            /** Join Url */
+            join_url: string;
+            /** Participant Count */
+            participant_count: number;
+            /** Submitted Count */
+            submitted_count: number;
+        };
         /**
          * ExamStatus
          * @enum {string}
@@ -893,6 +1147,92 @@ export interface components {
          * @enum {string}
          */
         JobStatus: "queued" | "running" | "done" | "failed";
+        /** JoinIn */
+        JoinIn: {
+            /** Name */
+            name: string;
+        };
+        /** JoinInfo */
+        JoinInfo: {
+            /** Exam Title */
+            exam_title: string;
+            /** Question Count */
+            question_count: number;
+            /** Duration Minutes */
+            duration_minutes: number;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "open" | "ended";
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+        };
+        /** JoinedOut */
+        JoinedOut: {
+            /** Participant Token */
+            participant_token: string;
+            /** Name */
+            name: string;
+        };
+        /** ParticipantRow */
+        ParticipantRow: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "in_progress" | "submitted";
+            /** Answered Count */
+            answered_count: number;
+            /** Score */
+            score: number | null;
+            /**
+             * Joined At
+             * Format: date-time
+             */
+            joined_at: string;
+            /** Submitted At */
+            submitted_at: string | null;
+        };
+        /** ParticipantState */
+        ParticipantState: {
+            /** Name */
+            name: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "in_progress" | "submitted";
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+            /** Questions */
+            questions: components["schemas"]["StudentQuestion"][];
+            /** Answers */
+            answers: {
+                [key: string]: string;
+            };
+            result: components["schemas"]["SessionResult"] | null;
+        };
         /** QuestionSetIn */
         QuestionSetIn: {
             /** Title */
@@ -939,6 +1279,19 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** QuestionStat */
+        QuestionStat: {
+            /** Key */
+            key: string;
+            /** Number */
+            number: number;
+            /** Stem */
+            stem: string;
+            /** Answered Count */
+            answered_count: number;
+            /** Correct Count */
+            correct_count: number;
         };
         /**
          * QuestionType
@@ -992,11 +1345,61 @@ export interface components {
             /** Questions */
             questions: components["schemas"]["ResultQuestion"][];
         };
+        /** ReviewItem */
+        ReviewItem: {
+            /** Key */
+            key: string;
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Selected Option */
+            selected_option: string | null;
+            /** Correct Option */
+            correct_option: string;
+            /** Explanation */
+            explanation: string;
+            /** Is Correct */
+            is_correct: boolean;
+        };
         /**
          * Role
          * @enum {string}
          */
         Role: "admin" | "student" | "teacher";
+        /** SampleExamOut */
+        SampleExamOut: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Question Count */
+            question_count: number;
+            /** Questions */
+            questions: components["schemas"]["SampleExamQuestionOut"][];
+        };
+        /** SampleExamQuestionOut */
+        SampleExamQuestionOut: {
+            /** Key */
+            key: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "mcq" | "true_false";
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
+            /** Correct Option */
+            correct_option: string;
+            /** Explanation */
+            explanation: string;
+        };
         /** SampleIn */
         SampleIn: {
             /**
@@ -1029,6 +1432,40 @@ export interface components {
             created: number;
             /** Ids */
             ids: number[];
+        };
+        /** SessionDashboard */
+        SessionDashboard: {
+            session: components["schemas"]["ExamSessionOut"];
+            /** Participants */
+            participants: components["schemas"]["ParticipantRow"][];
+            /** Average Score */
+            average_score: number | null;
+            /** Questions */
+            questions: components["schemas"]["QuestionStat"][];
+            /**
+             * Server Now
+             * Format: date-time
+             */
+            server_now: string;
+        };
+        /** SessionIn */
+        SessionIn: {
+            /**
+             * Exam Id
+             * @default sample
+             */
+            exam_id: string;
+            /** Duration Minutes */
+            duration_minutes: number;
+        };
+        /** SessionResult */
+        SessionResult: {
+            /** Score */
+            score: number;
+            /** Total */
+            total: number;
+            /** Review */
+            review: components["schemas"]["ReviewItem"][];
         };
         /** SourceCreate */
         SourceCreate: {
@@ -1063,6 +1500,25 @@ export interface components {
         StatsOut: {
             /** Domains */
             domains: components["schemas"]["DomainStats"][];
+        };
+        /**
+         * StudentQuestion
+         * @description A question as the student sees it: never the answer.
+         */
+        StudentQuestion: {
+            /** Key */
+            key: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "mcq" | "true_false";
+            /** Stem */
+            stem: string;
+            /** Options */
+            options: {
+                [key: string]: string;
+            };
         };
         /** TaskStatementStats */
         TaskStatementStats: {
@@ -1125,6 +1581,19 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /** AnswerIn */
+        app__exam_sessions__AnswerIn: {
+            /** Selected Option */
+            selected_option: string;
+        };
+        /** AnswerIn */
+        app__exams__AnswerIn: {
+            /**
+             * Selected Option
+             * @enum {string}
+             */
+            selected_option: "A" | "B" | "C" | "D";
         };
     };
     responses: never;
@@ -1507,7 +1976,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AnswerIn"];
+                "application/json": components["schemas"]["app__exams__AnswerIn"];
             };
         };
         responses: {
@@ -2072,6 +2541,341 @@ export interface operations {
                 };
                 content: {
                     "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sample_exam_api_v1_sample_exam_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SampleExamOut"];
+                };
+            };
+        };
+    };
+    download_sample_exam_api_v1_sample_exam_pdf_get: {
+        parameters: {
+            query?: {
+                version?: "student" | "teacher";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sessions_api_v1_exam_sessions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionOut"][];
+                };
+            };
+        };
+    };
+    start_session_api_v1_exam_sessions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    session_dashboard_api_v1_exam_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionDashboard"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_session_api_v1_exam_sessions__session_id__close_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExamSessionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_info_api_v1_join__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinInfo"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    join_session_api_v1_join__token__participants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JoinIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JoinedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_exam_api_v1_join__token__me_get: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Participant-Token": string;
+            };
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParticipantState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_answer_api_v1_join__token__answers__question_key__put: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Participant-Token": string;
+            };
+            path: {
+                token: string;
+                question_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["app__exam_sessions__AnswerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_api_v1_join__token__submit_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Participant-Token": string;
+            };
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionResult"];
                 };
             };
             /** @description Validation Error */

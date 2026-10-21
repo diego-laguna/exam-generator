@@ -17,6 +17,7 @@ export const NAV: NavItem[] = [
   { to: "/generate", label: "Generate", roles: ["teacher"] },
   { to: "/questions", label: "Questions", roles: ["teacher"] },
   { to: "/sets", label: "Sets", roles: ["teacher"] },
+  { to: "/exam", label: "Exam", roles: ["teacher"] },
   { to: "/exams", label: "Exams", roles: ["student"] },
   { to: "/users", label: "Users", roles: ["admin"] },
   { to: "/samples", label: "Samples", roles: ["admin"] },

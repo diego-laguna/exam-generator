@@ -14,7 +14,7 @@ resource "aws_ecs_cluster" "main" {
 locals {
   image = "${aws_ecr_repository.api.repository_url}:${var.image_tag}"
 
-  environment = [
+  environment = concat([
     { name = "STORAGE_BACKEND", value = "s3" },
     { name = "S3_BUCKET", value = aws_s3_bucket.documents.bucket },
     { name = "DB_HOST", value = aws_db_instance.main.address },
@@ -22,7 +22,7 @@ locals {
     { name = "DB_NAME", value = aws_db_instance.main.db_name },
     { name = "SQS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
     { name = "SQS_REGION", value = var.region },
-  ]
+  ], var.web_base_url == "" ? [] : [{ name = "WEB_BASE_URL", value = var.web_base_url }])
 
   worker_environment = concat(local.environment, [
     { name = "LLM_GENERATION_MODEL", value = var.llm_generation_model },

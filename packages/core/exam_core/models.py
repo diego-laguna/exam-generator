@@ -356,3 +356,51 @@ class QuestionSetItem(Base):
         ForeignKey("bank_questions.id", ondelete="CASCADE"), primary_key=True
     )
     position: Mapped[int]
+
+
+class ExamSession(Base):
+    """A teacher opens the built-in exam to students for a fixed time. Students join with the token
+    in the URL (no account) until `ends_at`, or until the teacher closes the session."""
+
+    __tablename__ = "exam_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    exam_id: Mapped[str] = mapped_column(String(32))  # key of the built-in exam, see app.sample_exam
+    join_token: Mapped[str] = mapped_column(String(64), unique=True)
+    duration_minutes: Mapped[int]
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # ended early by the teacher
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class SessionParticipant(Base):
+    """A student in a session. `token_hash` is the SHA-256 of the secret the student's browser holds."""
+
+    __tablename__ = "session_participants"
+    __table_args__ = (UniqueConstraint("session_id", "name"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[int] = mapped_column(
+        ForeignKey("exam_sessions.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(100))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    score: Mapped[int | None]  # correct answers, set when submitted or when the session ended
+
+
+class SessionAnswer(Base):
+    __tablename__ = "session_answers"
+
+    participant_id: Mapped[int] = mapped_column(
+        ForeignKey("session_participants.id", ondelete="CASCADE"), primary_key=True
+    )
+    question_key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    selected_option: Mapped[str] = mapped_column(String(1))
+    answered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    is_correct: Mapped[bool]
