@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { QuestionCard } from "../components/QuestionCard";
+import { PageHeader } from "../components/Page";
 import { ErrorText } from "../components/Status";
 import { saveBlob } from "../download";
 import { unwrap } from "../errors";
@@ -66,30 +67,40 @@ export function SetDetailPage() {
 
   return (
     <>
-      <h1>{current.title}</h1>
-      <div className="card row">
-        <button type="button" onClick={() => download.mutate("student")} disabled={download.isPending}>
-          Download student PDF
+      <PageHeader
+        title={current.title}
+        back={{ to: "/sets", label: "Question sets" }}
+        subtitle={`${ids.length} question${ids.length === 1 ? "" : "s"}`}
+        actions={
+          <>
+            <button type="button" onClick={() => download.mutate("student")} disabled={download.isPending}>
+              Download student PDF
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => download.mutate("teacher")}
+              disabled={download.isPending}
+            >
+              Download answer key
+            </button>
+          </>
+        }
+      />
+      <form onSubmit={rename} className="card row filters">
+        <label className="grow">
+          Rename
+          <input value={title ?? current.title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <button type="submit" className="secondary" disabled={title === null || !title.trim() || replace.isPending}>
+          Save name
         </button>
-        <button type="button" onClick={() => download.mutate("teacher")} disabled={download.isPending}>
-          Download answer key
-        </button>
-        <span className="grow" />
         <button
           type="button"
           className="danger"
           onClick={() => window.confirm(`Delete the set "${current.title}"? Its questions are kept.`) && remove.mutate()}
         >
           Delete set
-        </button>
-      </div>
-      <form onSubmit={rename} className="row">
-        <label className="grow">
-          Rename
-          <input value={title ?? current.title} maxLength={200} onChange={(e) => setTitle(e.target.value)} />
-        </label>
-        <button type="submit" disabled={title === null || !title.trim() || replace.isPending}>
-          Save name
         </button>
       </form>
       <ErrorText error={download.error ?? replace.error ?? remove.error} />

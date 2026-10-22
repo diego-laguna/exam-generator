@@ -15,10 +15,12 @@ interface Props {
   number?: number;
   /** Controls such as a selection checkbox or a delete button. */
   actions?: ReactNode;
+  /** Highlights the card, e.g. while it is picked for a new set. */
+  selected?: boolean;
 }
 
 /** A question as the teacher sees it: correct option marked, explanation and sources shown. */
-export function QuestionCard({ question, number, actions }: Props) {
+export function QuestionCard({ question, number, actions, selected = false }: Props) {
   const options =
     question.type === "true_false"
       ? ([
@@ -28,9 +30,9 @@ export function QuestionCard({ question, number, actions }: Props) {
       : Object.entries(question.options);
 
   return (
-    <article className="card question">
+    <article className={selected ? "card question selected" : "card question"}>
       <header className="question-head">
-        <span className="badge">{question.type === "mcq" ? "Multiple choice" : "True / false"}</span>
+        <span className={`badge type-${question.type}`}>{question.type === "mcq" ? "Multiple choice" : "True / false"}</span>
         {actions ? <div className="actions">{actions}</div> : null}
       </header>
       <h3>

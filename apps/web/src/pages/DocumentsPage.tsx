@@ -1,6 +1,7 @@
 import { useRef, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { EmptyState, PageHeader } from "../components/Page";
 import { ErrorText, StatusBadge } from "../components/Status";
 import { unwrap } from "../errors";
 import { api } from "../session";
@@ -48,9 +49,12 @@ export function DocumentsPage() {
 
   return (
     <>
-      <h1>Documents</h1>
-      <form onSubmit={submit} className="card row">
-        <label>
+      <PageHeader
+        title="Documents"
+        subtitle="Upload the PDFs your questions should come from. Each question cites the page and lines it is based on."
+      />
+      <form onSubmit={submit} className="card upload-card">
+        <label className="grow">
           PDF file
           <input
             ref={fileInput}
@@ -62,21 +66,28 @@ export function DocumentsPage() {
         <button type="submit" disabled={!file || upload.isPending}>
           {upload.isPending ? "Uploading…" : "Upload"}
         </button>
+        <p className="hint upload-hint">PDFs need a text layer; scanned documents are rejected. Maximum 25 MB.</p>
       </form>
-      <p className="hint">PDFs need a text layer; scanned documents are rejected. Maximum 25 MB.</p>
       <ErrorText error={upload.error ?? remove.error ?? documents.error} />
 
-      {documents.data?.length === 0 ? <p>No documents yet.</p> : null}
+      {documents.data?.length === 0 ? (
+        <EmptyState icon="📄" title="No documents yet">
+          Upload a PDF above to start generating questions.
+        </EmptyState>
+      ) : null}
       <ul className="list">
         {documents.data?.map((d) => (
-          <li key={d.id} className="card row">
+          <li key={d.id} className="card item">
+            <span className="item-icon" aria-hidden="true">
+              📄
+            </span>
             <div className="grow">
-              <strong>{d.filename}</strong>
+              <strong className="item-title">{d.filename}</strong>
               <div className="hint">
                 {d.page_count ? `${d.page_count} pages · ` : ""}
                 {d.chunk_count} chunks
               </div>
-              {d.error ? <p className="error">{d.error}</p> : null}
+              {d.error ? <p className="item-error">{d.error}</p> : null}
             </div>
             <StatusBadge status={d.status} />
             <button

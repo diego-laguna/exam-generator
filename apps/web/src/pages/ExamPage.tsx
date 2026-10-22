@@ -160,7 +160,7 @@ export function ExamPage() {
       {current.status === "generating" ? <p aria-live="polite">Preparing your questions&hellip;</p> : null}
 
       {current.status === "failed" ? (
-        <p role="alert" className="error">
+        <p role="alert" className="alert-error">
           No questions were available for this selection. Try other domains.
         </p>
       ) : null}

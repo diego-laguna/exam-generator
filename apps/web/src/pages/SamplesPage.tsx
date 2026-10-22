@@ -152,7 +152,7 @@ export function SamplesPage() {
           />
         </label>
         {bulkError ? (
-          <p role="alert" className="error">
+          <p role="alert" className="alert-error">
             {bulkError}
           </p>
         ) : null}

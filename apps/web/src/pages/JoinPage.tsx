@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useParams } from "react-router-dom";
 
+import { EmptyState, Stat } from "../components/Page";
 import { ErrorText } from "../components/Status";
 import { unwrap } from "../errors";
 import { formatClock, useCountdown } from "../format";
@@ -19,10 +20,13 @@ export function JoinPage() {
   });
 
   return (
-    <main className="narrow-wide">
+    <main className="join">
+      <p className="join-brand">
+        <span aria-hidden="true">🎓</span> ExamGen
+      </p>
       <h1>{info.data?.exam_title ?? "Exam"}</h1>
       {info.isPending ? <p>Loading&hellip;</p> : null}
-      {info.error ? <p role="alert" className="error">This exam link is not valid.</p> : null}
+      {info.error ? <p role="alert" className="alert-error">This exam link is not valid.</p> : null}
       {info.data && secret === null ? (
         <NameForm
           token={token}
@@ -54,7 +58,13 @@ function NameForm({
     onSuccess: (joined) => onJoined(joined.participant_token),
   });
 
-  if (info.status === "ended") return <p>This exam session has ended.</p>;
+  if (info.status === "ended") {
+    return (
+      <EmptyState icon="⏹️" title="Closed">
+        This exam session has ended.
+      </EmptyState>
+    );
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -63,9 +73,13 @@ function NameForm({
 
   return (
     <form className="card stack" onSubmit={submit}>
-      <p>
-        {info.question_count} questions. You have to finish within the session&rsquo;s time limit (
-        {info.duration_minutes} minutes from when your teacher started it). Your answers are saved as you go.
+      <div className="stat-grid">
+        <Stat label="Questions" value={info.question_count} />
+        <Stat label="Minutes" value={info.duration_minutes} />
+      </div>
+      <p className="hint">
+        The time limit counts from when your teacher started the session, not from when you join. Your answers are
+        saved as you go.
       </p>
       <label>
         Your name
@@ -122,12 +136,13 @@ function TakeExam({ token, secret }: { token: string; secret: string }) {
   if (me.result) {
     return (
       <>
-        <p className="timer" role="status">
-          {me.name}, you scored{" "}
-          <strong>
+        <section className="card score-hero" role="status">
+          <span className="score-sub">{me.name}, you scored</span>
+          <strong className="score-number">
             {me.result.score} / {me.result.total}
           </strong>
-        </p>
+          <span className="score-sub">Review your answers below.</span>
+        </section>
         <ol className="list">
           {me.result.review.map((r, index) => (
             <li key={r.key} className="card question-take">
@@ -140,9 +155,11 @@ function TakeExam({ token, secret }: { token: string; secret: string }) {
                     key={letter}
                     className={letter === r.correct_option ? "correct" : letter === r.selected_option ? "wrong-pick" : ""}
                   >
-                    {letter}. {text}
-                    {letter === r.correct_option ? " (correct answer)" : ""}
-                    {letter === r.selected_option && letter !== r.correct_option ? " (your answer)" : ""}
+                    <strong>{letter}.</strong> {text}
+                    {letter === r.correct_option ? <span className="tag correct">correct answer</span> : null}
+                    {letter === r.selected_option && letter !== r.correct_option ? (
+                      <span className="tag yours">your answer</span>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -165,6 +182,9 @@ function TakeExam({ token, secret }: { token: string; secret: string }) {
         <span className="hint grow">
           {answered} of {me.questions.length} answered
         </span>
+        <span className="progress-track answered-bar" aria-hidden="true">
+          <span className="progress-fill" style={{ width: `${Math.round((100 * answered) / me.questions.length)}%` }} />
+        </span>
         <button
           type="button"
           disabled={submit.isPending}
@@ -179,7 +199,7 @@ function TakeExam({ token, secret }: { token: string; secret: string }) {
       </div>
       <ErrorText error={save.error ?? submit.error} />
       {secondsLeft === 0 ? (
-        <p role="alert" className="error">
+        <p role="alert" className="alert-error">
           Time is up.{" "}
           <button type="button" className="link" onClick={() => void queryClient.invalidateQueries({ queryKey: ["join", token, "me"] })}>
             Show my result

@@ -33,28 +33,41 @@ export function LoginPage() {
   }
 
   return (
-    <main className="narrow">
-      <h1>Sign in</h1>
-      <form onSubmit={submit} className="stack">
-        <label>
-          Username
-          <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" required />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        <ErrorText error={error} />
-        <button type="submit" disabled={busy}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
-    </main>
+    <div className="login-wrapper">
+      <div className="login-card">
+        <div className="login-brand">
+          <span className="login-logo" aria-hidden="true">🎓</span>
+          <p className="login-name">ExamGen</p>
+          <h1>Sign in</h1>
+        </div>
+        <form onSubmit={submit} className="stack">
+          <label>
+            Username
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoComplete="username"
+              placeholder="your-username"
+              required
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              placeholder="••••••••"
+              required
+            />
+          </label>
+          <ErrorText error={error} />
+          <button type="submit" disabled={busy} className="login-submit">
+            {busy ? "Signing in…" : <>Sign in <span aria-hidden="true">→</span></>}
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }

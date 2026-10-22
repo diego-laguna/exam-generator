@@ -81,7 +81,7 @@ export function UsersPage() {
             {created.map((u) => (
               <li key={u.id} className="card row">
                 <strong className="grow">{u.username}</strong>
-                <span className="badge">{u.role}</span>
+                <span className={`role-badge ${u.role}`}>{u.role}</span>
               </li>
             ))}
           </ul>

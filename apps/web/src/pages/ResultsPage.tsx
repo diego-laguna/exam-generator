@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 
-import { ErrorText } from "../components/Status";
+import { PageHeader } from "../components/Page";
+import { ErrorText, StatusBadge } from "../components/Status";
 import { unwrap } from "../errors";
 import { api } from "../session";
 
@@ -28,28 +29,29 @@ export function ResultsPage() {
 
   return (
     <>
-      <h1>
-        Results: {r.mode === "exam" ? "Exam" : "Practice"} #{r.exam_id}
-      </h1>
-      <p>
-        <Link to="/exams">&larr; All sessions</Link>
-      </p>
-      <section className="card">
-        <h2>
-          {r.correct} / {r.total} correct ({r.percent}%)
-        </h2>
-        <p className="hint">
-          {r.answered} answered
-          {r.status !== "finished" ? " so far; only answered questions are shown until the session is finished" : ""}.
-        </p>
+      <PageHeader
+        title={`Results: ${r.mode === "exam" ? "Exam" : "Practice"} #${r.exam_id}`}
+        back={{ to: "/exams", label: "All sessions" }}
+      />
+      <section className="card score-hero">
+        <strong className="score-number">{r.percent}%</strong>
+        <span className="score-sub">
+          <strong>
+            {r.correct} / {r.total} correct
+          </strong>{" "}
+          &middot; {r.answered} answered
+          {r.status !== "finished" ? " so far; only answered questions are shown until the session is finished" : ""}
+        </span>
       </section>
 
       {r.questions.map((q) => (
         <article key={q.id} className="card question">
           <header className="question-head">
-            <span className={q.is_correct ? "badge status-ready" : "badge status-failed"}>
-              {q.selected_option === null ? "Unanswered" : q.is_correct ? "Correct" : "Incorrect"}
-            </span>
+            {q.selected_option === null ? (
+              <span className="badge">Unanswered</span>
+            ) : (
+              <StatusBadge status={q.is_correct ? "ready" : "failed"} label={q.is_correct ? "Correct" : "Incorrect"} />
+            )}
             <span className="hint">
               {q.domain} &middot; {q.task_statement}
             </span>
@@ -66,8 +68,8 @@ export function ResultsPage() {
                 return (
                   <li key={letter} className={isCorrect ? "correct" : isYours ? "wrong-pick" : undefined}>
                     <strong>{letter}.</strong> {text}
-                    {isCorrect ? <span className="tag"> correct answer</span> : null}
-                    {isYours ? <span className="tag"> your answer</span> : null}
+                    {isCorrect ? <span className="tag correct">correct answer</span> : null}
+                    {isYours ? <span className="tag yours">your answer</span> : null}
                   </li>
                 );
               })}

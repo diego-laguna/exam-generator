@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 
+import { PageHeader } from "../components/Page";
 import { ErrorText, StatusBadge } from "../components/Status";
 import { unwrap } from "../errors";
 import { api } from "../session";
@@ -62,17 +63,29 @@ export function GeneratePage() {
 
   return (
     <>
-      <h1>Generate questions</h1>
+      <PageHeader
+        title="Generate questions"
+        subtitle="Pick documents and how many questions you want. Every question is checked against its citation before it is kept."
+      />
       <form onSubmit={submit} className="card stack">
         <fieldset>
           <legend>Documents</legend>
-          {ready.length === 0 ? <p className="hint">Upload a PDF and wait until it is ready.</p> : null}
-          {ready.map((d) => (
-            <label key={d.id} className="check">
-              <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggle(d.id)} />
-              {d.filename}
-            </label>
-          ))}
+          {ready.length === 0 ? (
+            <p className="hint">
+              No ready documents. <Link to="/documents">Upload a PDF</Link> and wait until it is ready.
+            </p>
+          ) : null}
+          <div className="choice-grid">
+            {ready.map((d) => (
+              <label key={d.id} className="check choice">
+                <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggle(d.id)} />
+                <span className="grow">
+                  {d.filename}
+                  <span className="choice-meta">{d.page_count ? `${d.page_count} pages` : `${d.chunk_count} chunks`}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         </fieldset>
         <div className="row">
           <label>
@@ -89,26 +102,37 @@ export function GeneratePage() {
               onChange={(e) => setTrueFalse(Number(e.target.value))}
             />
           </label>
+          <label className="grow">
+            Focus (optional)
+            <input value={focus} maxLength={500} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. photosynthesis" />
+          </label>
         </div>
-        <label>
-          Focus (optional)
-          <input value={focus} maxLength={500} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. photosynthesis" />
-        </label>
         <ErrorText error={start.error} />
-        <button type="submit" disabled={selected.length === 0 || total < 1 || total > 50 || start.isPending || running}>
-          Generate {total} question{total === 1 ? "" : "s"}
-        </button>
+        <div className="form-footer">
+          <span className="hint grow">
+            {selected.length} document{selected.length === 1 ? "" : "s"} selected · up to 50 questions per run
+          </span>
+          <button type="submit" disabled={selected.length === 0 || total < 1 || total > 50 || start.isPending || running}>
+            Generate {total} question{total === 1 ? "" : "s"}
+          </button>
+        </div>
       </form>
 
       {job.data ? (
-        <section className="card" aria-live="polite">
+        <section className="card stack" aria-live="polite">
           <div className="row">
             <strong className="grow">
               {job.data.produced_count} of {job.data.requested_count} questions produced
             </strong>
             <StatusBadge status={job.data.status} />
           </div>
-          {job.data.error ? <p className="error">{job.data.error}</p> : null}
+          <div className="progress-track" aria-hidden="true">
+            <div
+              className={job.data.status === "failed" ? "progress-fill low" : "progress-fill"}
+              style={{ width: `${Math.round((100 * job.data.produced_count) / Math.max(1, job.data.requested_count))}%` }}
+            />
+          </div>
+          {job.data.error ? <p className="alert-error">{job.data.error}</p> : null}
           {job.data.status === "done" ? (
             <p>
               Questions that fail the citation or validation checks are discarded, so fewer than requested is normal.{" "}

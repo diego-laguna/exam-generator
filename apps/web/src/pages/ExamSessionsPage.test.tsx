@@ -81,7 +81,7 @@ describe("exam sessions", () => {
     renderAt("/sessions/5");
     expect(await screen.findByText("Ana")).toBeInTheDocument();
     expect(screen.getByText("5 / 6", { selector: "td" })).toBeInTheDocument();
-    expect(screen.getByText("in progress")).toBeInTheDocument();
+    expect(screen.getByText("In progress")).toBeInTheDocument();
     expect(screen.getByText("1 (50%)")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "End session now" })).toBeInTheDocument();
   });
@@ -89,7 +89,7 @@ describe("exam sessions", () => {
   it("hides the end button once the session has ended", async () => {
     stubApi({ "GET /api/v1/exam-sessions/5": () => json({ ...board, session: session({ status: "ended", closed_early: true }) }) });
     renderAt("/sessions/5");
-    expect(await screen.findByText("ended early")).toBeInTheDocument();
+    expect(await screen.findByText("Ended early")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "End session now" })).not.toBeInTheDocument();
   });
 });

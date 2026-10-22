@@ -6,6 +6,7 @@ import { saveBlob } from "../download";
 import { unwrap } from "../errors";
 import { formatDateTime } from "../format";
 import { api } from "../session";
+import { EmptyState, PageHeader } from "../components/Page";
 import { ErrorText, StatusBadge } from "../components/Status";
 
 /** The built-in exam: download it as PDFs or open a timed session for students. */
@@ -50,74 +51,95 @@ export function ExamSessionsPage() {
 
   return (
     <>
-      <h1>Exam</h1>
+      <PageHeader title="Exam" subtitle="Print the built-in exam, or run it as a timed session that students join from a link." />
       {exam.isPending ? <p>Loading&hellip;</p> : null}
       <ErrorText error={exam.error} />
-      {exam.data ? (
-        <section className="card stack" aria-label="Exam">
-          <h2>{exam.data.title}</h2>
-          <p className="hint">
-            {exam.data.question_count} questions (multiple choice and true/false). This is a built-in exam.
-          </p>
-          <div className="row">
-            <button type="button" onClick={() => download.mutate("student")} disabled={download.isPending}>
-              Download student PDF
-            </button>
-            <button type="button" onClick={() => download.mutate("teacher")} disabled={download.isPending}>
-              Download answer key
+      <div className="split">
+        {exam.data ? (
+          <section className="card stack" aria-label="Exam">
+            <div>
+              <h2>{exam.data.title}</h2>
+              <p className="hint">
+                {exam.data.question_count} questions (multiple choice and true/false). This is a built-in exam.
+              </p>
+            </div>
+            <div className="row">
+              <button type="button" onClick={() => download.mutate("student")} disabled={download.isPending}>
+                Download student PDF
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => download.mutate("teacher")}
+                disabled={download.isPending}
+              >
+                Download answer key
+              </button>
+            </div>
+            <ErrorText error={download.error} />
+            <details className="disclosure">
+              <summary>Preview the questions</summary>
+              <ol>
+                {exam.data.questions.map((q) => (
+                  <li key={q.key}>
+                    {q.stem} <span className="hint">(answer {q.correct_option})</span>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          </section>
+        ) : null}
+
+        <form className="card stack" onSubmit={submit} aria-label="Start exam session">
+          <div>
+            <h2>Start exam session</h2>
+            <p className="hint">
+              Students open the link you get, enter a name and answer. The time limit starts now and cannot be changed
+              afterwards; you can end the session early.
+            </p>
+          </div>
+          <div className="row filters">
+            <label>
+              Time limit (minutes)
+              <input
+                type="number"
+                min={1}
+                max={480}
+                value={minutes}
+                onChange={(e) => setMinutes(Number(e.target.value))}
+              />
+            </label>
+            <button type="submit" disabled={start.isPending || !(minutes >= 1)}>
+              Start Exam Session
             </button>
           </div>
-          <ErrorText error={download.error} />
-          <details>
-            <summary>Preview the questions</summary>
-            <ol>
-              {exam.data.questions.map((q) => (
-                <li key={q.key}>
-                  {q.stem} <span className="hint">(answer {q.correct_option})</span>
-                </li>
-              ))}
-            </ol>
-          </details>
-        </section>
-      ) : null}
+          <ErrorText error={start.error} />
+        </form>
+      </div>
 
-      <form className="card stack" onSubmit={submit} aria-label="Start exam session">
-        <h2>Start exam session</h2>
-        <p className="hint">
-          Students open the link you get, enter a name and answer. The time limit starts now and cannot be changed
-          afterwards; you can end the session early.
-        </p>
-        <div className="row">
-          <label>
-            Time limit (minutes)
-            <input
-              type="number"
-              min={1}
-              max={480}
-              value={minutes}
-              onChange={(e) => setMinutes(Number(e.target.value))}
-            />
-          </label>
-          <button type="submit" disabled={start.isPending || !(minutes >= 1)}>
-            Start Exam Session
-          </button>
-        </div>
-        <ErrorText error={start.error} />
-      </form>
-
-      <h2>Sessions</h2>
+      <h2 className="section-title">Sessions</h2>
       <ErrorText error={sessions.error} />
-      {sessions.data?.length === 0 ? <p>No sessions yet.</p> : null}
+      {sessions.data?.length === 0 ? (
+        <EmptyState icon="⏱️" title="No sessions yet">
+          Start a session above and share its link with your students.
+        </EmptyState>
+      ) : null}
       <ul className="list">
         {sessions.data?.map((s) => (
-          <li key={s.id} className="card row">
-            <Link to={`/sessions/${s.id}`} className="grow">
-              <strong>{s.exam_title}</strong> &middot; {formatDateTime(s.started_at)}
-            </Link>
-            <span className="hint">
-              {s.submitted_count}/{s.participant_count} submitted &middot; {s.duration_minutes} min
+          <li key={s.id} className="card item">
+            <span className="item-icon" aria-hidden="true">
+              ⏱️
             </span>
-            <StatusBadge status={s.status === "open" ? "ready" : "done"} />
+            <div className="grow">
+              <Link to={`/sessions/${s.id}`} className="item-title">
+                {s.exam_title}
+              </Link>
+              <div className="hint">
+                {formatDateTime(s.started_at)} &middot; {s.duration_minutes} min &middot; {s.submitted_count}/
+                {s.participant_count} submitted
+              </div>
+            </div>
+            <StatusBadge status={s.status} />
           </li>
         ))}
       </ul>
