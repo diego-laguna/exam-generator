@@ -29,6 +29,33 @@ The worker must share the database, the PDF storage folder (or S3 bucket) and th
 - Jobs are idempotent against redelivery: a document is claimed from `pending` or `processing` (a dead worker leaves no chunks behind, so it restarts cleanly); a generation job is claimed only from `queued`, so questions are never produced twice (a job interrupted mid-way is reported `failed` after `JOB_STALE_MINUTES`).
 - On SIGTERM (an ECS deploy) the worker finishes its current job, then exits (up to one long-poll of 20 s).
 
+## What this generator does with embeddings
+
+**Embeddings are only a ranking tool, not the source of truth.**
+- The only live use is `build_candidate_pool` (`worker/question_gen.py`). It runs when the teacher gives a **focus** topic. The focus is embedded and the `DocumentChunk`s are ordered by cosine distance, taking the closest `max(slots*3, 12)`.
+- Without a focus, there is no vector search. Chunks are taken in document order and spread evenly across the slots.
+- The LLM never sees the embeddings. It gets the chunk text, and the answer is checked by the citation check (is the quote really in the cited page and lines?) and by blind validation. A weak embedding match costs relevance, not correctness. A bad retrieval can't produce an unverified question.
+
+**Retrieval is small and scoped.**
+- It is filtered to the teacher's own `document_ids`, a handful of PDFs. There is no global corpus search, so the candidate set is small.
+- Chunks are 40 numbered lines with 5 lines of overlap. That size comes from the citation requirement (page and line), not from what suits the embedding model. The chunking serves the citations first, the retrieval second.
+- Chunks shorter than `MIN_CHUNK_CHARS` are skipped.
+
+**The model runs locally and only in the worker.**
+- It is `fastembed` with ONNX and `bge-small-en-v1.5` (384 dims). There is no embedding API, no key and no PyTorch.
+- The API never imports it (CI checks this). The `Embedder` protocol and `EMBEDDING_DIM` live in `exam_core`, so the DB schema can be shared.
+- Tests use `FakeEmbedder`.
+
+**Embedding happens at ingest, asynchronously.**
+- Embeddings are computed after upload, in `ingest_document`. Sample question embeddings are filled in later by an `embed_samples` job, so that column is nullable.
+- Jobs are idempotent: they claim rows by status, and `embed_samples` only fills rows where `embedding IS NULL`.
+
+**One model and one dimension are baked into the schema.**
+- There are three `Vector(384)` columns (`chunks`, `sample_questions`, `document_chunks`), each with an HNSW index using `vector_cosine_ops`.
+- Changing the model needs a migration and a re-embed of everything.
+
+**Two of the three tables are not used for generation yet.** `similar_chunks` (`apps/api/app/retrieval.py`) and the `chunks` and `sample_questions` tables belong to the legacy student module ("ready for M5").
+
 ## Configuration
 
 Shared settings (`DATABASE_URL`/`DB_*`, `STORAGE_BACKEND`, `LOCAL_STORAGE_DIR`, `S3_BUCKET`, `SQS_QUEUE_URL`, `SQS_ENDPOINT_URL`, `JOB_STALE_MINUTES`) are described in [`apps/api/README.md`](../api/README.md). Worker-only settings:
