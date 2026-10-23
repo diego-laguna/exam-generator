@@ -133,3 +133,33 @@ def test_handle_dispatches_document_ingestion(services):
         doc = seed_ready_document(db, owner.id)
     handle(IngestDocument(document_id=doc.id), services)  # already ready: acknowledged, nothing fetched
     assert not services.storage.objects
+
+
+def test_processing_logs_carry_message_type_and_job_id_and_context_is_cleared(services, caplog):
+    import json
+    import logging
+
+    from exam_core.logging import JsonFormatter, get_log_context
+
+    with SessionLocal() as db:
+        owner = create_user(db, Role.teacher)
+        doc = seed_ready_document(db, owner.id)
+    queue = FakeQueue()
+    lines: list[dict] = []
+
+    class Capture(logging.Handler):  # formats while the job's log context is still bound
+        def emit(self, record):
+            if record.name.startswith("worker"):
+                lines.append(json.loads(JsonFormatter().format(record)))
+
+    handler = Capture()
+    logging.getLogger().addHandler(handler)
+    try:
+        with caplog.at_level(logging.INFO):
+            consumer.process(queue, Received("r1", encode(IngestDocument(document_id=doc.id))), services, 60)
+    finally:
+        logging.getLogger().removeHandler(handler)
+    assert lines and all(l["message_type"] == "ingest_document" and l["job_id"] == doc.id for l in lines)
+    end = [l for l in lines if l["message"] == "Job finished"]
+    assert end and end[0]["outcome"] == "skipped" and "duration_ms" in end[0]
+    assert get_log_context() == {} and queue.deleted == ["r1"]

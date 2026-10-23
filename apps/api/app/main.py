@@ -1,7 +1,13 @@
+from typing import Any
+
+from exam_core.logging import configure_logging
 from fastapi import APIRouter, FastAPI
+from fastapi.openapi.utils import get_openapi
 
 from app.auth import router as auth_router
 from app.documents import router as documents_router
+from app.config import get_settings
+from app.errors import ERROR_RESPONSES, install_error_handling
 from app.exam_sessions import join_router, teacher_router as exam_sessions_router
 from app.exams import router as exams_router
 from app.generations import router as generations_router
@@ -35,7 +41,36 @@ TAGS = [
     {"name": "health", "description": "Liveness probe."},
 ]
 
-app = FastAPI(title="Exam-Generator API", description=DESCRIPTION, openapi_tags=TAGS)
+configure_logging(get_settings().log_level, get_settings().log_format)
+
+app = FastAPI(
+    title="Exam-Generator API",
+    description=DESCRIPTION,
+    openapi_tags=TAGS,
+    responses=ERROR_RESPONSES,  # declaring 422 also replaces FastAPI's default HTTPValidationError
+)
+install_error_handling(app)
+
+
+def custom_openapi() -> dict[str, Any]:
+    """Error responses are application/problem+json (FastAPI documents a model as application/json)."""
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(
+        title=app.title, version=app.version, description=app.description, routes=app.routes, tags=TAGS
+    )
+    for path in schema["paths"].values():
+        for operation in path.values():
+            for code, response in operation["responses"].items():
+                if code in ("4XX", "5XX") or (code.isdigit() and int(code) >= 400):
+                    content = response.get("content", {})
+                    if "application/json" in content:
+                        content["application/problem+json"] = content.pop("application/json")
+    app.openapi_schema = schema
+    return schema
+
+
+app.openapi = custom_openapi
 
 def health():
     """Liveness probe. Public, no sign-in needed.

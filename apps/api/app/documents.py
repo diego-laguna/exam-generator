@@ -4,7 +4,8 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from exam_core.errors import Conflict, InvalidInput, NotFound, PayloadTooLarge, ServiceUnavailable
+from fastapi import APIRouter, Depends, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -56,7 +57,7 @@ def get_owned_document(
         select(Document).where(Document.id == document_id, Document.owner_id == user.id)
     )
     if document is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+        raise NotFound("Document not found", code="DOCUMENT_NOT_FOUND")
     _expire_stale(db, document, clock())
     return document
 
@@ -85,9 +86,7 @@ async def _read_capped(file: UploadFile, limit: int) -> bytes:
     while chunk := await file.read(1024 * 1024):
         data.extend(chunk)
         if len(data) > limit:
-            raise HTTPException(
-                status.HTTP_413_CONTENT_TOO_LARGE, f"The file is larger than {limit} bytes"
-            )
+            raise PayloadTooLarge(f"The file is larger than {limit} bytes", code="FILE_TOO_LARGE")
     return bytes(data)
 
 
@@ -111,7 +110,7 @@ async def upload_document(
 ):
     data = await _read_capped(file, get_settings().upload_max_bytes)
     if data[:5] != b"%PDF-":
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The file is not a PDF")
+        raise InvalidInput("The file is not a PDF", code="NOT_A_PDF")
     digest = hashlib.sha256(data).hexdigest()
     key = f"{get_settings().s3_prefix}{user.id}/{uuid.uuid4().hex}.pdf"
     document = Document(
@@ -127,13 +126,13 @@ async def upload_document(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "You already uploaded this file")
+        raise Conflict("You already uploaded this file", code="DOCUMENT_DUPLICATE")
     try:
         storage.put(key, data)
     except Exception:
         db.delete(document)
         db.commit()
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Could not store the file")
+        raise ServiceUnavailable("Could not store the file", code="STORAGE_UNAVAILABLE")
     db.refresh(document)
 
     def undo() -> None:

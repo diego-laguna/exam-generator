@@ -1,29 +1,41 @@
+import type { Schema } from "@exam-generator/api-client";
+
+export type FieldError = { field: string; message: string };
+
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
     readonly code?: string,
+    readonly requestId?: string,
+    readonly fieldErrors: FieldError[] = [],
   ) {
     super(message);
   }
 }
 
-/** Turns a FastAPI error body into a readable message and, when present, its error code. */
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const text = (value: unknown): string | undefined => (typeof value === "string" && value ? value : undefined);
+
+/** Turns an RFC 9457 problem body (`ProblemDetail`) into an ApiError; tolerates non-JSON or unknown bodies. */
 export function toApiError(status: number, body: unknown): ApiError {
-  const detail = (body as { detail?: unknown } | null | undefined)?.detail;
-  if (typeof detail === "string") return new ApiError(detail, status);
-  if (Array.isArray(detail)) {
-    const first = detail[0] as { msg?: string; loc?: unknown[] } | undefined;
-    const field = first?.loc?.filter((p) => p !== "body").join(".");
-    // Pydantic prefixes messages raised by our validators with "Value error, ".
-    const message = first?.msg?.replace(/^Value error, /, "");
-    return new ApiError(message ? `${field ? `${field}: ` : ""}${message}` : "Invalid request", status);
-  }
-  if (detail && typeof detail === "object") {
-    const { code, message } = detail as { code?: string; message?: string };
-    return new ApiError(message ?? "Request failed", status, code);
-  }
-  return new ApiError(`Request failed (${status})`, status);
+  const problem: Partial<Schema["ProblemDetail"]> = isObject(body) ? body : {};
+  const fieldErrors: FieldError[] = Array.isArray(problem.errors)
+    ? problem.errors.flatMap((e) =>
+        isObject(e) && typeof e.message === "string" ? [{ field: text(e.field) ?? "", message: e.message }] : [],
+      )
+    : [];
+  const first = fieldErrors[0];
+  const requestId = text(problem.request_id);
+  let message =
+    (first && `${first.field ? `${first.field}: ` : ""}${first.message}`) ??
+    text(problem.detail) ??
+    text(problem.title) ??
+    `Request failed (${status})`;
+  if (status >= 500 && requestId) message += ` (ref ${requestId})`;
+  return new ApiError(message, status, text(problem.code), requestId, fieldErrors);
 }
 
 /** Unwraps an openapi-fetch result: returns the data or throws an ApiError. */

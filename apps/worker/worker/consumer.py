@@ -5,10 +5,11 @@ import threading
 from collections.abc import Callable
 from typing import Protocol
 
+from exam_core.logging import log_context
 from exam_core.queue import Received, decode
 from pydantic import ValidationError
 
-from worker.handlers import handle
+from worker.handlers import handle, job_id_of
 from worker.services import Services
 
 log = logging.getLogger(__name__)
@@ -45,18 +46,19 @@ def process(
         log.error("Dropping unreadable message: %.200s", received.body)
         queue.delete(received.receipt)
         return
-    done = threading.Event()
-    beat = threading.Thread(target=_heartbeat, args=(queue, received.receipt, visibility, done), daemon=True)
-    beat.start()
-    try:
-        run(message, services)
-    except Exception:
-        log.exception("Job failed unexpectedly; leaving the message for redelivery")
-        return
-    finally:
-        done.set()
-        beat.join(timeout=5)
-    queue.delete(received.receipt)
+    with log_context(message_type=message.type, job_id=job_id_of(message)):
+        done = threading.Event()
+        beat = threading.Thread(target=_heartbeat, args=(queue, received.receipt, visibility, done), daemon=True)
+        beat.start()
+        try:
+            run(message, services)
+        except Exception:
+            log.exception("Job failed unexpectedly; leaving the message for redelivery")
+            return
+        finally:
+            done.set()
+            beat.join(timeout=5)
+        queue.delete(received.receipt)
 
 
 def run_forever(

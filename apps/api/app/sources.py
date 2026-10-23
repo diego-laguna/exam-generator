@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, HTTPException, Response, status
+from exam_core.errors import Conflict, InvalidInput, NotFound
+from fastapi import APIRouter, Response, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -70,7 +71,7 @@ def create_source(
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise HTTPException(status.HTTP_409_CONFLICT, "This URL was already added")
+        raise Conflict("This URL was already added", code="SOURCE_DUPLICATE")
     db.refresh(source)
 
     def undo() -> None:
@@ -116,7 +117,7 @@ def list_sources(user: CurrentUser, db: DbSession):
 def delete_source(source_id: int, db: DbSession):
     source = db.get(Source, source_id)
     if source is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+        raise NotFound("Source not found", code="SOURCE_NOT_FOUND")
     db.delete(source)  # chunks go with it (ON DELETE CASCADE)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -175,12 +176,14 @@ def create_samples(body: SamplesCreate, db: DbSession, queue: QueueDep):
         if sample.task_statement is not None:
             task = tasks.get(sample.task_statement)
             if task is None:
-                raise HTTPException(422, f"samples[{i}]: unknown task statement '{sample.task_statement}'")
+                raise InvalidInput(
+                    f"samples[{i}]: unknown task statement '{sample.task_statement}'", code="UNKNOWN_TASK_STATEMENT"
+                )
         domain_id = task.domain_id if task else sample.domain_id
         if task and sample.domain_id is not None and sample.domain_id != task.domain_id:
-            raise HTTPException(422, f"samples[{i}]: task statement does not belong to that domain")
+            raise InvalidInput(f"samples[{i}]: task statement does not belong to that domain", code="TASK_DOMAIN_MISMATCH")
         if domain_id is None or not 1 <= domain_id <= 4:
-            raise HTTPException(422, f"samples[{i}]: unknown domain")
+            raise InvalidInput(f"samples[{i}]: unknown domain", code="UNKNOWN_DOMAIN")
         resolved.append((domain_id, task.id if task else None))
 
     rows = [

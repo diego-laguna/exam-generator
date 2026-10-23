@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from exam_core.errors import Conflict, InvalidInput, NotFound
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, select
 from sqlalchemy.dialects.postgresql import insert
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.clock import ClockDep
 from app.config import get_settings
 from app.dependencies import CurrentUser, DbSession, StudentOnly
-from app.exam_deps import ActiveExam, OwnedExam, UnlockedExam, error
+from app.exam_deps import ActiveExam, OwnedExam, UnlockedExam
 from app.exam_service import create_exam as create_exam_record
 from app.exam_service import expire_if_needed, finalize_exam
 from exam_core.models import (
@@ -108,7 +109,7 @@ def create_exam(body: ExamCreate, user: CurrentUser, db: DbSession):
         known = set(db.scalars(select(Domain.id).where(Domain.id.in_(body.domains))))
         unknown = sorted(set(body.domains) - known)
         if unknown:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Unknown domain ids: {unknown}")
+            raise InvalidInput(f"Unknown domain ids: {unknown}", code="UNKNOWN_DOMAIN")
     settings = get_settings()
     requested = body.question_count or (
         settings.exam_default_questions
@@ -193,9 +194,9 @@ def get_exam(exam: OwnedExam, db: DbSession):
 )
 def start_exam(exam: OwnedExam, db: DbSession, clock: ClockDep):
     if exam.status in (ExamStatus.in_progress, ExamStatus.finished):
-        raise error(status.HTTP_409_CONFLICT, "EXAM_ALREADY_STARTED", "The exam was already started")
+        raise Conflict("The exam was already started", code="EXAM_ALREADY_STARTED")
     if exam.status != ExamStatus.ready:
-        raise error(status.HTTP_409_CONFLICT, "EXAM_NOT_AVAILABLE", "The exam is not available")
+        raise Conflict("The exam is not available", code="EXAM_NOT_AVAILABLE")
     now = clock()
     exam.started_at = now
     if exam.duration_minutes is not None:
@@ -233,7 +234,7 @@ class AnswerOut(BaseModel):
 def save_answer(question_id: int, body: AnswerIn, exam: ActiveExam, db: DbSession, clock: ClockDep):
     question = db.get(Question, question_id)
     if question is None or db.get(ExamQuestion, (exam.id, question_id)) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not in this exam")
+        raise NotFound("Question not in this exam", code="QUESTION_NOT_FOUND")
     now = clock()
     is_correct = body.selected_option == question.correct_option
     db.execute(

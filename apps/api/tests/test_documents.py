@@ -71,7 +71,7 @@ def test_queue_down_rolls_the_upload_back_and_can_be_retried(storage, queue, tea
     data = unique_pdf()
     queue.fail = True
     r = upload(teacher, data)
-    assert r.status_code == 503 and r.json()["detail"]["code"] == "QUEUE_UNAVAILABLE"
+    assert r.status_code == 503 and r.json()["code"] == "QUEUE_UNAVAILABLE"
     assert not storage.objects and client.get(f"{P}/documents", headers=teacher).json() == []
     queue.fail = False
     assert upload(teacher, data).status_code == 202  # same file: nothing was left behind

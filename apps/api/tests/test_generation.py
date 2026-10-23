@@ -36,7 +36,7 @@ def test_queue_down_marks_the_job_failed_and_unblocks(queue, teacher):
     doc_id = ready_document(teacher)
     queue.fail = True
     r = start(teacher, doc_id)
-    assert r.status_code == 503 and r.json()["detail"]["code"] == "QUEUE_UNAVAILABLE"
+    assert r.status_code == 503 and r.json()["code"] == "QUEUE_UNAVAILABLE"
     job = client.get(f"{P}/generations", headers=teacher).json()[0]
     assert job["status"] == "failed" and job["error"] == "The job could not be queued"
     queue.fail = False
@@ -64,7 +64,7 @@ def test_only_own_ready_documents_can_be_used(queue, teacher):
         doc.status = DocumentStatus.processing
         db.commit()
     r = start(teacher, doc_id)
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "DOCUMENT_NOT_READY"
+    assert r.status_code == 409 and r.json()["code"] == "DOCUMENT_NOT_READY"
     assert not queue.sent
 
 
@@ -75,7 +75,7 @@ def test_jobs_are_private_and_one_runs_at_a_time(queue, teacher):
     assert client.get(f"{P}/generations/{job['id']}", headers=other).status_code == 404
     assert client.get(f"{P}/generations", headers=other).json() == []
     r = start(teacher, doc_id)  # the first job is still queued
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "JOB_IN_PROGRESS"
+    assert r.status_code == 409 and r.json()["code"] == "JOB_IN_PROGRESS"
     assert len(queue.sent) == 1
 
 

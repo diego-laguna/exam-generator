@@ -4,6 +4,7 @@ from collections.abc import Callable
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from worker.outcome import Outcome
 from worker.chunking import chunk_sections, extract_sections
 from exam_core.config import get_settings
 from exam_core.db import SessionLocal
@@ -26,7 +27,7 @@ def ingest_source(
     fetcher: Fetcher,
     embedder: Embedder,
     session_factory: Callable[[], Session] = SessionLocal,
-) -> None:
+) -> Outcome:
     """Worker job: fetch, chunk, embed and store a source. Never raises.
 
     Runs in its own session; the request that queued it is long gone.
@@ -35,7 +36,7 @@ def ingest_source(
     with session_factory() as db:
         source = db.get(Source, source_id)
         if source is None or source.status not in (SourceStatus.pending, SourceStatus.ingesting):
-            return
+            return "skipped"
         source.status = SourceStatus.ingesting
         db.commit()
         try:
@@ -48,7 +49,7 @@ def ingest_source(
 
             source = _fresh_source(db, source_id)
             if source is None:  # deleted while we were working
-                return
+                return "skipped"
             db.add_all(
                 Chunk(
                     source_id=source_id,
@@ -63,11 +64,17 @@ def ingest_source(
             source.status = SourceStatus.ready
             source.error = None
             db.commit()
+            log.info("Source ingested", extra={"chunks": len(chunks), "html_chars": len(html)})
+            return "done"
         except Exception as exc:
             db.rollback()
-            log.exception("Ingestion of source %s failed", source_id)
+            if isinstance(exc, IngestionError):
+                log.warning("Source ingestion failed: %s", exc)
+            else:
+                log.exception("Source ingestion failed unexpectedly")
             source = _fresh_source(db, source_id)
             if source is not None:
                 source.status = SourceStatus.failed
                 source.error = str(exc) if isinstance(exc, IngestionError) else "Ingestion failed unexpectedly"
                 db.commit()
+        return "failed"

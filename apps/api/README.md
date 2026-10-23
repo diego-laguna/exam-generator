@@ -222,6 +222,42 @@ curl -s $API/sources -H "Authorization: Bearer $ADMIN" | jq   # status: pending 
 
 Ingestion runs in the worker: the page is fetched, split into overlapping chunks at its headings, embedded, and stored in PostgreSQL with pgvector. The first ingestion downloads the embedding model (about 130 MB, cached in `.cache/fastembed` at the repository root).
 
+## Errors and logging
+
+Every error response is `application/problem+json` (RFC 9457) with the same body, and carries an `X-Request-ID` header (an incoming one is kept if it is up to 128 chars of `A-Za-z0-9._-`, else a new one is made):
+
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "code": "NAME_TAKEN",
+  "detail": "Someone already joined with that name; add your surname or a number",
+  "instance": "/api/v1/join/.../participants",
+  "request_id": "5b0f0c0e8f3a4c1c9a41a0d3b7e2c6aa",
+  "errors": []
+}
+```
+
+Branch on `code`, show `detail`. Validation errors (422, `VALIDATION_ERROR`) fill `errors[]` with `{field, message, type}`. Unexpected errors are 500 `INTERNAL_ERROR` with a generic message; the cause is only in the logs, under the same `request_id`.
+
+Code raises `exam_core.errors` exceptions (`NotFound`, `Conflict`, `InvalidInput`, ...), never `HTTPException`; `app/errors.py` holds the handlers.
+
+| Status | When |
+|---|---|
+| 401 | Missing, invalid or expired credentials or tokens (`WWW-Authenticate: Bearer`) |
+| 403 | Signed in with the wrong role |
+| 404 | Unknown or not-owned resource (never 403 for foreign ids) |
+| 409 | State conflicts and duplicates |
+| 413 | Upload over the size cap |
+| 422 | Invalid request or semantically invalid input |
+| 503 | Queue or storage down or not configured |
+| 500 / 501 | Unexpected / placeholder |
+
+Codes: `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `INVALID_TOKEN`, `INVALID_REFRESH_TOKEN`, `FORBIDDEN`, `NOT_FOUND`, `METHOD_NOT_ALLOWED`, `DOCUMENT_NOT_FOUND`, `QUESTION_NOT_FOUND`, `QUESTION_SET_NOT_FOUND`, `GENERATION_NOT_FOUND`, `SOURCE_NOT_FOUND`, `EXAM_NOT_FOUND`, `EXAM_SESSION_NOT_FOUND`, `PARTICIPANT_NOT_FOUND`, `USERNAME_TAKEN`, `DOCUMENT_DUPLICATE`, `SOURCE_DUPLICATE`, `DOCUMENT_NOT_READY`, `JOB_IN_PROGRESS`, `QUESTION_SET_EMPTY`, `EXAM_NOT_STARTED`, `EXAM_WINDOW_CLOSED`, `EXAM_NOT_AVAILABLE`, `EXAM_ALREADY_STARTED`, `RESULTS_LOCKED`, `SESSION_ENDED`, `SESSION_FULL`, `NAME_TAKEN`, `ALREADY_SUBMITTED`, `FILE_TOO_LARGE`, `NOT_A_PDF`, `VALIDATION_ERROR`, `INVALID_OPTION`, `DURATION_TOO_LONG`, `UNKNOWN_DOMAIN`, `UNKNOWN_TASK_STATEMENT`, `TASK_DOMAIN_MISMATCH`, `QUEUE_NOT_CONFIGURED`, `QUEUE_UNAVAILABLE`, `STORAGE_UNAVAILABLE`, `NOT_IMPLEMENTED`, `INTERNAL_ERROR`.
+
+Logs are one JSON object per line on stderr (`timestamp`, `level`, `logger`, `message`, `exc_info`, plus context such as `request_id`), shared with the worker through `exam_core.logging`. The API writes one access line per request (`method`, `path` without the query string, `status`, `duration_ms`). Set `LOG_LEVEL` and `LOG_FORMAT=text` for readable local output. Tokens, passwords, join tokens and Authorization/cookie headers are never logged.
+
 ## Tests and checks
 
 The tests need PostgreSQL running (`docker compose -f ../../compose.yaml up -d --wait`). They create and reset their own `learn_assistant_test` database, so your development data is never touched. The worker's tests use `learn_assistant_worker_test`.

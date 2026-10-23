@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fakeToken, json, stubApi } from "./test-utils";
+import { fakeToken, json, problem, stubApi } from "./test-utils";
 
 const url = (path: string) => new URL(path, window.location.origin).toString();
 
@@ -72,7 +72,7 @@ describe("authFetch", () => {
     onSessionExpired(expired);
     stubApi({
       "GET /api/v1/documents": () => json({}, 401),
-      "POST /api/v1/auth/refresh": () => json({ detail: "Invalid or expired refresh token" }, 401),
+      "POST /api/v1/auth/refresh": () => problem(401, "UNAUTHORIZED", "Invalid or expired refresh token"),
     });
     const response = await authFetch(new Request(url("/api/v1/documents")));
     expect(response.status).toBe(401);
@@ -82,7 +82,7 @@ describe("authFetch", () => {
 
   it("does not try to refresh when an auth endpoint itself answers 401", async () => {
     const { authFetch } = await loadSession();
-    const { calls } = stubApi({ "POST /api/v1/auth/login": () => json({ detail: "no" }, 401) });
+    const { calls } = stubApi({ "POST /api/v1/auth/login": () => problem(401, "UNAUTHORIZED", "no") });
     const response = await authFetch(new Request(url("/api/v1/auth/login"), { method: "POST" }));
     expect(response.status).toBe(401);
     expect(calls).toHaveLength(1);

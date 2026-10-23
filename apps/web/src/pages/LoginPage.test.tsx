@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AuthProvider } from "../auth";
 import { setAccessToken } from "../session";
-import { fakeToken, json, stubApi } from "../test-utils";
+import { fakeToken, json, problem, stubApi } from "../test-utils";
 import { LoginPage } from "./LoginPage";
 
 function renderLogin() {
@@ -29,7 +29,7 @@ beforeEach(() => {
 describe("LoginPage", () => {
   it("signs in with a form-encoded request and moves on", async () => {
     const { calls } = stubApi({
-      "POST /api/v1/auth/refresh": () => json({ detail: "no session" }, 401),
+      "POST /api/v1/auth/refresh": () => problem(401, "UNAUTHORIZED", "no session"),
       "POST /api/v1/auth/login": () => json({ access_token: fakeToken("teacher"), refresh_token: "r", token_type: "bearer" }),
     });
     renderLogin();
@@ -47,8 +47,8 @@ describe("LoginPage", () => {
 
   it("shows a clear message for wrong credentials", async () => {
     stubApi({
-      "POST /api/v1/auth/refresh": () => json({ detail: "no session" }, 401),
-      "POST /api/v1/auth/login": () => json({ detail: "Incorrect username or password" }, 401),
+      "POST /api/v1/auth/refresh": () => problem(401, "UNAUTHORIZED", "no session"),
+      "POST /api/v1/auth/login": () => problem(401, "UNAUTHORIZED", "Incorrect username or password"),
     });
     renderLogin();
     await userEvent.type(await screen.findByLabelText("Username"), "dave");

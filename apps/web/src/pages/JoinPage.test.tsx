@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { json, stubApi } from "../test-utils";
+import { json, problem, stubApi } from "../test-utils";
 import { JoinPage } from "./JoinPage";
 
 const info = {
@@ -109,7 +109,7 @@ describe("JoinPage", () => {
     expect(await screen.findByText("This exam session has ended.")).toBeInTheDocument();
 
     vi.unstubAllGlobals();
-    stubApi({ "GET /api/v1/join/abc": () => json({ detail: "Exam session not found" }, 404) });
+    stubApi({ "GET /api/v1/join/abc": () => problem(404, "NOT_FOUND", "Exam session not found") });
     renderPage();
     expect(await screen.findByText("This exam link is not valid.")).toBeInTheDocument();
   });

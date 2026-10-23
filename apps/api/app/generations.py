@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from exam_core.errors import Conflict, NotFound
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,8 +19,6 @@ router = APIRouter(prefix="/generations", tags=["generations"], dependencies=[Te
 _ACTIVE = (JobStatus.queued, JobStatus.running)
 
 
-def _error(status_code: int, code: str, message: str) -> HTTPException:
-    return HTTPException(status_code, {"code": code, "message": message})
 
 
 class GenerationCreate(BaseModel):
@@ -83,7 +82,7 @@ def get_owned_job(job_id: int, user: CurrentUser, db: DbSession, clock: ClockDep
         select(GenerationJob).where(GenerationJob.id == job_id, GenerationJob.owner_id == user.id)
     )
     if job is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Generation not found")
+        raise NotFound("Generation not found", code="GENERATION_NOT_FOUND")
     _expire_stale(db, job, clock())
     return job
 
@@ -114,9 +113,9 @@ def create_generation(
         select(Document).where(Document.id.in_(document_ids), Document.owner_id == user.id)
     ).all()
     if len(documents) != len(document_ids):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Document not found")
+        raise NotFound("Document not found", code="DOCUMENT_NOT_FOUND")
     if any(d.status != DocumentStatus.ready for d in documents):
-        raise _error(status.HTTP_409_CONFLICT, "DOCUMENT_NOT_READY", "All documents must be ready")
+        raise Conflict("All documents must be ready", code="DOCUMENT_NOT_READY")
 
     now = clock()
     for active in db.scalars(
@@ -124,7 +123,7 @@ def create_generation(
     ):
         _expire_stale(db, active, now)
         if active.status in _ACTIVE:  # one job at a time per teacher caps LLM spend
-            raise _error(status.HTTP_409_CONFLICT, "JOB_IN_PROGRESS", "A generation is already running")
+            raise Conflict("A generation is already running", code="JOB_IN_PROGRESS")
 
     job = GenerationJob(
         owner_id=user.id,
