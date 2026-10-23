@@ -29,6 +29,13 @@ from exam_core.models import (
     QuestionType,
 )
 from worker.pdf_text import numbered_text, quote_matches
+from worker.pure import (
+    avoid_window,
+    blind_validation,
+    citation_snapshots,
+    generation_failure,
+    question_slots,
+)
 
 log = logging.getLogger(__name__)
 
@@ -201,7 +208,7 @@ def run_generation(
 
 
 def _run(db: Session, job: GenerationJob, llm: Llm, embedder: Embedder, settings: Settings) -> None:
-    slots = [QuestionType.mcq] * job.mcq_count + [QuestionType.true_false] * job.true_false_count
+    slots = question_slots(job.mcq_count, job.true_false_count)
     pool = build_candidate_pool(db, job.document_ids, job.focus, embedder, len(slots))
     if not pool:
         job.status = JobStatus.failed
@@ -223,7 +230,7 @@ def _run(db: Session, job: GenerationJob, llm: Llm, embedder: Embedder, settings
         db.commit()
         for chunk in slot_chunks(pool, index, len(slots), settings.generation_attempts_per_slot, bool(job.focus)):
             try:
-                draft, options, blind = generate_question(llm, settings, qtype, chunk, job.focus, avoid[-MAX_AVOID:])
+                draft, options, blind = generate_question(llm, settings, qtype, chunk, job.focus, avoid_window(avoid, MAX_AVOID))
             except Rejection as why:
                 log.info("Slot rejected: %s", why, extra={"slot": index})
                 continue
@@ -241,15 +248,12 @@ def _run(db: Session, job: GenerationJob, llm: Llm, embedder: Embedder, settings
                     options=options,
                     correct_option=draft.correct_option,
                     explanation=draft.explanation,
-                    citations=[
-                        {
-                            "document": filenames.get(chunk.document_id, ""),
-                            "chunk_id": chunk.id,
-                            **c.model_dump(),
-                        }
-                        for c in draft.citations
-                    ],
-                    validation={"blind_answer": blind.answer, "ambiguous": False, "reasoning": blind.reasoning},
+                    citations=citation_snapshots(
+                        filenames.get(chunk.document_id, ""),
+                        chunk.id,
+                        (c.model_dump() for c in draft.citations),
+                    ),
+                    validation=blind_validation(blind.answer, blind.reasoning),
                     model=settings.llm_generation_model,
                 )
             )
@@ -257,9 +261,8 @@ def _run(db: Session, job: GenerationJob, llm: Llm, embedder: Embedder, settings
             db.commit()
             avoid.append(draft.stem)
             break
-    if job.produced_count == 0:
-        job.status = JobStatus.failed
-        job.error = "The model could not be reached" if llm_failures else "No question passed validation"
-    else:
-        job.status = JobStatus.done
+    error = generation_failure(job.produced_count, llm_failures)
+    job.status = JobStatus.done if error is None else JobStatus.failed
+    if error is not None:
+        job.error = error
     db.commit()

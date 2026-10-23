@@ -8,6 +8,7 @@ PDF has a real text layer; scanned PDFs have none and are rejected.
 import io
 import re
 import unicodedata
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from pdfminer.high_level import extract_pages
@@ -61,17 +62,14 @@ def extract_lines(data: bytes, max_pages: int) -> tuple[list[Line], int]:
             if page_no > max_pages:
                 raise IngestionError(f"The PDF has more than {max_pages} pages")
             pages = page_no
-            number = 0
-            for element in layout:
-                if not isinstance(element, LTTextContainer):
-                    continue
-                for line in element:
-                    if not isinstance(line, LTTextLine):
-                        continue
-                    text = _normalize(line.get_text())
-                    if text:
-                        number += 1
-                        lines.append(Line(page_no, number, text))
+            texts = (
+                _normalize(line.get_text())
+                for element in layout
+                if isinstance(element, LTTextContainer)
+                for line in element
+                if isinstance(line, LTTextLine)
+            )
+            lines = [*lines, *number_lines(page_no, texts)]
     except IngestionError:
         raise
     except PDFSyntaxError as exc:
@@ -83,18 +81,19 @@ def extract_lines(data: bytes, max_pages: int) -> tuple[list[Line], int]:
     return lines, pages
 
 
+def number_lines(page: int, texts: Iterable[str]) -> list[Line]:
+    """Numbers the non-empty texts 1.. in order for one page."""
+    return [Line(page, n, t) for n, t in enumerate(filter(None, texts), start=1)]
+
+
 def chunk_lines(lines: list[Line], max_lines: int, overlap: int) -> list[LineChunk]:
     """Windows of consecutive lines, overlapping so a fact at a boundary lands whole in one chunk."""
     if max_lines <= overlap:
         raise ValueError("max_lines must be larger than overlap")
     step = max_lines - overlap
-    chunks = []
-    for start in range(0, len(lines), step):
-        window = lines[start : start + max_lines]
-        chunks.append(LineChunk(window))
-        if start + max_lines >= len(lines):
-            break
-    return chunks
+    # a window is the last one once it reaches the end, so later starts (s + overlap >= len) are dropped
+    starts = (s for s in range(0, len(lines), step) if s == 0 or s + overlap < len(lines))
+    return [LineChunk(lines[s : s + max_lines]) for s in starts]
 
 
 def lines_to_json(chunk: LineChunk) -> list[list]:

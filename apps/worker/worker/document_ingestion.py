@@ -10,7 +10,8 @@ from exam_core.embeddings import Embedder
 from exam_core.errors import IngestionError
 from exam_core.models import Document, DocumentChunk, DocumentStatus
 from worker.outcome import Outcome
-from worker.pdf_text import chunk_lines, extract_lines, lines_to_json
+from worker.pdf_text import chunk_lines, extract_lines
+from worker.pure import document_chunk_rows
 from exam_core.storage import Storage
 
 log = logging.getLogger(__name__)
@@ -48,14 +49,8 @@ def ingest_document(
             if document is None:  # deleted while we were working
                 return "skipped"
             db.add_all(
-                DocumentChunk(
-                    document_id=document_id,
-                    position=i,
-                    lines=lines_to_json(c),
-                    content=c.content,
-                    embedding=vec,
-                )
-                for i, (c, vec) in enumerate(zip(chunks, vectors))
+                DocumentChunk(document_id=document_id, **row)
+                for row in document_chunk_rows(chunks, vectors)
             )
             document.page_count = pages
             document.status = DocumentStatus.ready
