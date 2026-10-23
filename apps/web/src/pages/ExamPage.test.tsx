@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "../session";
-import { json, stubApi } from "../test-utils";
+import { json, problem, stubApi } from "../test-utils";
 import { ExamPage } from "./ExamPage";
 
 const base = {
@@ -100,7 +100,7 @@ describe("ExamPage", () => {
       "GET /api/v1/exams/5": () =>
         json({ ...base, status: "in_progress", started_at: "x", questions: [{ ...questions[0], selected_option: "C" }, questions[1]] }),
       "PUT /api/v1/exams/5/answers/12": () =>
-        json({ detail: { code: "EXAM_WINDOW_CLOSED", message: "The exam time has expired" } }, 409),
+        problem(409, "EXAM_WINDOW_CLOSED", "The exam time has expired"),
       "GET /api/v1/exams": () => json([]),
       "GET /api/v1/me/stats": () => json({ domains: [] }),
     });

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, load_only
 from exam_core.config import Settings, get_settings
 from exam_core.db import SessionLocal
 from exam_core.embeddings import Embedder
+from worker.outcome import Outcome
 from worker.llm import Llm, LlmError
 from exam_core.models import (
     BankQuestion,
@@ -164,7 +165,7 @@ def run_generation(
     llm: Llm | None,
     embedder: Embedder,
     session_factory: Callable[[], Session] = SessionLocal,
-) -> None:
+) -> Outcome:
     """Worker job. Never raises; the outcome is recorded on the job row."""
     settings = get_settings()
     with session_factory() as db:
@@ -172,24 +173,31 @@ def run_generation(
         # Only a queued job is claimed: a redelivered message for a job that is running, done or
         # already failed (for example timed out) must not produce its questions twice.
         if job is None or job.status != JobStatus.queued:
-            return
+            return "skipped"
         if llm is None:
             job.status = JobStatus.failed
             job.error = "Question generation is not configured"
             db.commit()
-            return
+            log.warning("Generation is not configured (no API key)")
+            return "failed"
         job.status = JobStatus.running
         db.commit()
         try:
             _run(db, job, llm, embedder, settings)
+            log.info(
+                "Generation finished",
+                extra={"produced": job.produced_count, "requested": job.mcq_count + job.true_false_count},
+            )
+            return "done" if job.status == JobStatus.done else "failed"
         except Exception:
             db.rollback()
-            log.exception("Generation job %s failed", job_id)
+            log.exception("Generation failed unexpectedly")
             job = db.get(GenerationJob, job_id)
             if job is not None:
                 job.status = JobStatus.failed
                 job.error = "Generation failed unexpectedly"
                 db.commit()
+        return "failed"
 
 
 def _run(db: Session, job: GenerationJob, llm: Llm, embedder: Embedder, settings: Settings) -> None:
@@ -217,10 +225,10 @@ def _run(db: Session, job: GenerationJob, llm: Llm, embedder: Embedder, settings
             try:
                 draft, options, blind = generate_question(llm, settings, qtype, chunk, job.focus, avoid[-MAX_AVOID:])
             except Rejection as why:
-                log.info("Job %s slot %s rejected: %s", job.id, index, why)
+                log.info("Slot rejected: %s", why, extra={"slot": index})
                 continue
             except LlmError as why:
-                log.warning("Job %s slot %s LLM error: %s", job.id, index, why)
+                log.warning("Slot LLM error: %.200s", why, extra={"slot": index})
                 llm_failures += 1
                 continue
             db.add(

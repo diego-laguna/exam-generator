@@ -66,7 +66,7 @@ def results(h, exam_id):
 
 
 def code(r):
-    return r.json()["detail"]["code"]
+    return r.json()["code"]
 
 
 # --- creation ---------------------------------------------------------------------------
@@ -209,7 +209,7 @@ def test_exam_results_locked_until_finished(student):
     exam = make_exam(student, question_count=3)
     start(student, exam["id"])
     r = results(student, exam["id"])
-    assert r.status_code == 403 and code(r) == "RESULTS_LOCKED"
+    assert r.status_code == 409 and code(r) == "RESULTS_LOCKED"
 
 
 def test_submit_scores_and_unlocks_results(student):

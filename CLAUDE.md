@@ -65,7 +65,8 @@ Decisions beyond the PRD text (student module):
 - Domain ids 1-4 follow the exam guide; `POST /exams` takes `domains: [ids]`.
 - `/me/stats` counts practice answers and answers from finished exams only.
 - Time is injectable via the `get_clock` dependency; tests override it.
-- Error responses for exam rules use `detail: {code, message}` (e.g. `EXAM_WINDOW_CLOSED`, `RESULTS_LOCKED`).
+- Errors: every non-2xx is RFC 9457 `application/problem+json` (`ProblemDetail`: `type, title, status, code, detail, instance, request_id, errors[]`; handlers and request-id middleware in `apps/api/app/errors.py`). Routes and dependencies raise `exam_core.errors.DomainError` subclasses (never `HTTPException`) with a stable `code`. Status rules: 401 bad/missing credentials (`WWW-Authenticate: Bearer`), 403 wrong role, 404 unknown or not owned, 409 state conflict or duplicate (incl. `RESULTS_LOCKED`), 413 upload too large, 422 invalid input, 503 queue/storage down, 500 `INTERNAL_ERROR` (text only logged). Code list: `apps/api/README.md`.
+- Logging: JSON lines via `exam_core.logging.configure_logging` (`LOG_LEVEL`, `LOG_FORMAT=json|text`) in API and worker; context via `log_context(...)` (`request_id` per API request, echoed in `X-Request-ID`; `message_type`/`job_id` per worker job). Never log tokens, passwords, join/participant tokens, PDF text or LLM prompts/outputs; access logs redact `/join/{token}`.
 - Embeddings use `fastembed` instead of sentence-transformers (same open models, no PyTorch/CUDA install). Changing the model or its dimension needs a migration (`EMBEDDING_DIM`).
 - Source ingestion runs in the worker; a source goes `pending -> ingesting -> ready|failed`, and a source left `ingesting` by a dead worker is picked up again on redelivery.
 - URLs are validated against the allowlist (exact https host match, no userinfo/port) at the endpoint AND on every redirect hop; fetches have size/time/redirect caps.

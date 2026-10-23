@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "../session";
-import { json, stubApi } from "../test-utils";
+import { json, problem, stubApi } from "../test-utils";
 import { QuestionsPage } from "./QuestionsPage";
 
 const question = (id: number, stem: string, type: "mcq" | "true_false" = "mcq") => ({

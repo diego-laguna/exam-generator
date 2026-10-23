@@ -11,7 +11,8 @@ import secrets
 from datetime import datetime, timedelta
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Header, HTTPException, Response, status
+from exam_core.errors import Conflict, InvalidInput, NotFound
+from fastapi import APIRouter, Header, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import Integer, func, select
 from sqlalchemy.exc import IntegrityError
@@ -28,14 +29,12 @@ teacher_router = APIRouter(tags=["exam-sessions"], dependencies=[TeacherOnly])
 join_router = APIRouter(prefix="/join", tags=["join"])  # public: the token in the URL is the credential
 
 
-def _error(code: str, message: str, http: int = status.HTTP_409_CONFLICT) -> HTTPException:
-    return HTTPException(http, {"code": code, "message": message})
 
 
 def _exam(exam_id: str) -> Exam:
     exam = EXAMS.get(exam_id)
     if exam is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Exam not found")
+        raise NotFound("Exam not found", code="EXAM_NOT_FOUND")
     return exam
 
 
@@ -239,7 +238,7 @@ def _owned_session(db: Session, session_id: int, user_id: int) -> ExamSession:
         select(ExamSession).where(ExamSession.id == session_id, ExamSession.owner_id == user_id)
     )
     if session is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Exam session not found")
+        raise NotFound("Exam session not found", code="EXAM_SESSION_NOT_FOUND")
     return session
 
 
@@ -313,10 +312,9 @@ def download_sample_exam(version: Version = "student"):
 def start_session(body: SessionIn, user: CurrentUser, db: DbSession, clock: ClockDep):
     _exam(body.exam_id)
     if body.duration_minutes > get_settings().session_max_minutes:
-        raise _error(
-            "DURATION_TOO_LONG",
+        raise InvalidInput(
             f"A session can last at most {get_settings().session_max_minutes} minutes",
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            code="DURATION_TOO_LONG",
         )
     now = clock()
     session = ExamSession(
@@ -454,7 +452,7 @@ ParticipantToken = Annotated[str, Header(alias="X-Participant-Token", min_length
 def _session_by_token(db: Session, token: str) -> ExamSession:
     session = db.scalar(select(ExamSession).where(ExamSession.join_token == token))
     if session is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Exam session not found")
+        raise NotFound("Exam session not found", code="EXAM_SESSION_NOT_FOUND")
     return session
 
 
@@ -465,7 +463,7 @@ def _participant(db: Session, session: ExamSession, secret: str) -> SessionParti
         )
     )
     if p is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Participant not found")
+        raise NotFound("Participant not found", code="PARTICIPANT_NOT_FOUND")
     return p
 
 
@@ -529,10 +527,10 @@ def join_session(token: str, body: JoinIn, db: DbSession, clock: ClockDep):
     session = _session_by_token(db, token)
     _finalize(db, session, now)
     if _is_over(session, now):
-        raise _error("SESSION_ENDED", "This exam session has ended")
+        raise Conflict("This exam session has ended", code="SESSION_ENDED")
     joined = db.scalar(select(func.count()).where(SessionParticipant.session_id == session.id)) or 0
     if joined >= get_settings().session_max_participants:
-        raise _error("SESSION_FULL", "This exam session is full")
+        raise Conflict("This exam session is full", code="SESSION_FULL")
     secret = secrets.token_urlsafe(32)
     db.add(
         SessionParticipant(session_id=session.id, name=body.name, token_hash=_hash(secret), joined_at=now)
@@ -541,7 +539,7 @@ def join_session(token: str, body: JoinIn, db: DbSession, clock: ClockDep):
         db.commit()
     except IntegrityError:
         db.rollback()
-        raise _error("NAME_TAKEN", "Someone already joined with that name; add your surname or a number")
+        raise Conflict("Someone already joined with that name; add your surname or a number", code="NAME_TAKEN")
     return JoinedOut(participant_token=secret, name=body.name)
 
 
@@ -586,7 +584,7 @@ def _open_participant(
     _finalize(db, session, now)
     p = _participant(db, session, participant_token)
     if p.submitted_at is not None:
-        raise _error("ALREADY_SUBMITTED", "You already submitted this exam")
+        raise Conflict("You already submitted this exam", code="ALREADY_SUBMITTED")
     return session, p
 
 
@@ -613,9 +611,9 @@ def save_answer(
     exam = _exam(session.exam_id)
     q = exam.question(question_key)
     if q is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found")
+        raise NotFound("Question not found", code="QUESTION_NOT_FOUND")
     if body.selected_option not in q.options:
-        raise _error("INVALID_OPTION", "That option does not exist", status.HTTP_422_UNPROCESSABLE_CONTENT)
+        raise InvalidInput("That option does not exist", code="INVALID_OPTION")
     row = db.get(SessionAnswer, (p.id, q.key))
     if row is None:
         row = SessionAnswer(participant_id=p.id, question_key=q.key)

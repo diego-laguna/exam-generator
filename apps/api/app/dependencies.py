@@ -1,7 +1,8 @@
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from exam_core.errors import NotImplementedYet, PermissionDenied, Unauthenticated
+from fastapi import Depends
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -15,11 +16,9 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-def _unauthorized() -> HTTPException:
-    return HTTPException(
-        status.HTTP_401_UNAUTHORIZED,
-        "Invalid or expired token",
-        headers={"WWW-Authenticate": "Bearer"},
+def _unauthorized() -> Unauthenticated:
+    return Unauthenticated(
+        "Invalid or expired token", code="INVALID_TOKEN", headers={"WWW-Authenticate": "Bearer"}
     )
 
 
@@ -48,7 +47,7 @@ CurrentUser = Annotated[User, Depends(get_current_user)]
 def require_role(*roles: Role):
     def checker(user: CurrentUser) -> User:
         if user.role not in roles:
-            raise HTTPException(status.HTTP_403_FORBIDDEN, "Insufficient permissions")
+            raise PermissionDenied("Insufficient permissions")
         return user
 
     return checker
@@ -63,6 +62,6 @@ AnyUser = Depends(get_current_user)
 
 def not_implemented() -> None:
     """Placeholder body for endpoints whose access rules exist but logic doesn't yet."""
-    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, "Not implemented yet")
+    raise NotImplementedYet("Not implemented yet")
 
 StorageDep = Annotated[Storage, Depends(get_storage)]

@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from exam_core.errors import Conflict
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -65,4 +66,4 @@ def create_user_endpoint(body: UserCreate, db: DbSession):
     try:
         return create_user(db, body.username, body.password, body.role)
     except UsernameTaken:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Username already exists")
+        raise Conflict("Username already exists", code="USERNAME_TAKEN")

@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { setAccessToken } from "../session";
-import { json, stubApi } from "../test-utils";
+import { json, problem, stubApi } from "../test-utils";
 import { ResultsPage } from "./ResultsPage";
 import { SamplesPage } from "./SamplesPage";
 import { UsersPage } from "./UsersPage";
@@ -46,7 +46,7 @@ describe("UsersPage", () => {
   });
 
   it("shows the API's message when the username is taken", async () => {
-    stubApi({ "POST /api/v1/users": () => json({ detail: "Username already exists" }, 409) });
+    stubApi({ "POST /api/v1/users": () => problem(409, "USERNAME_TAKEN", "Username already exists") });
     renderAt("/users", "/users", <UsersPage />);
     await userEvent.type(screen.getByLabelText("Username"), "maria");
     await userEvent.type(screen.getByLabelText(/Password/), "long-enough-pass");
@@ -121,7 +121,7 @@ describe("ResultsPage", () => {
   it("explains why results are locked", async () => {
     stubApi({
       "GET /api/v1/exams/5/results": () =>
-        json({ detail: { code: "RESULTS_LOCKED", message: "Results unlock after you submit or time runs out" } }, 403),
+        problem(409, "RESULTS_LOCKED", "Results unlock after you submit or time runs out"),
     });
     renderAt("/exams/5/results", "/exams/:examId/results", <ResultsPage />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Results unlock after you submit");

@@ -9,6 +9,7 @@ from exam_core.db import SessionLocal
 from exam_core.embeddings import Embedder
 from exam_core.errors import IngestionError
 from exam_core.models import Document, DocumentChunk, DocumentStatus
+from worker.outcome import Outcome
 from worker.pdf_text import chunk_lines, extract_lines, lines_to_json
 from exam_core.storage import Storage
 
@@ -26,7 +27,7 @@ def ingest_document(
     storage: Storage,
     embedder: Embedder,
     session_factory: Callable[[], Session] = SessionLocal,
-) -> None:
+) -> Outcome:
     """Worker job: read the stored PDF, extract numbered lines, chunk, embed, store. Never raises."""
     settings = get_settings()
     with session_factory() as db:
@@ -34,7 +35,7 @@ def ingest_document(
         # `processing` is claimable again: a worker that died mid-way left no chunks behind (they
         # are written together with `ready`), so a redelivered message can safely start over.
         if document is None or document.status not in (DocumentStatus.pending, DocumentStatus.processing):
-            return
+            return "skipped"
         document.status = DocumentStatus.processing
         db.commit()
         try:
@@ -45,7 +46,7 @@ def ingest_document(
 
             document = _fresh(db, document_id)
             if document is None:  # deleted while we were working
-                return
+                return "skipped"
             db.add_all(
                 DocumentChunk(
                     document_id=document_id,
@@ -60,9 +61,14 @@ def ingest_document(
             document.status = DocumentStatus.ready
             document.error = None
             db.commit()
+            log.info("Document ingested", extra={"pages": pages, "chunks": len(chunks), "bytes": len(data)})
+            return "done"
         except Exception as exc:
             db.rollback()
-            log.exception("Ingestion of document %s failed", document_id)
+            if isinstance(exc, IngestionError):
+                log.warning("Document ingestion failed: %s", exc)
+            else:
+                log.exception("Document ingestion failed unexpectedly")
             document = _fresh(db, document_id)
             if document is not None:
                 document.status = DocumentStatus.failed
@@ -70,3 +76,4 @@ def ingest_document(
                     str(exc) if isinstance(exc, IngestionError) else "Processing failed unexpectedly"
                 )
                 db.commit()
+        return "failed"

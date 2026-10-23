@@ -1,7 +1,8 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from exam_core.errors import Unauthenticated
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy import delete, select
@@ -78,10 +79,10 @@ def revoke_all_refresh_tokens(db: Session, user_id: int) -> None:
     db.execute(delete(RefreshToken).where(RefreshToken.user_id == user_id))
 
 
-def _invalid_credentials() -> HTTPException:
-    return HTTPException(
-        status.HTTP_401_UNAUTHORIZED,
+def _invalid_credentials() -> Unauthenticated:
+    return Unauthenticated(
         "Incorrect username or password",
+        code="INVALID_CREDENTIALS",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
@@ -144,9 +145,9 @@ def refresh(
     user = db.get(User, row.user_id) if row else None
     if not (row and row.expires_at > datetime.now(UTC) and user and user.is_active):
         db.commit()  # persist the deletion of an expired/consumed token
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
+        raise Unauthenticated(
             "Invalid or expired refresh token",
+            code="INVALID_REFRESH_TOKEN",
             headers={"WWW-Authenticate": "Bearer"},
         )
     tokens = _issue_tokens(db, user)

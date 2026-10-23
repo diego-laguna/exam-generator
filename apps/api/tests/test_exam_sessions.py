@@ -161,7 +161,7 @@ def test_student_flow_gets_results_immediately_and_dashboard_updates(teacher):
     # After submitting the student can reload and still sees the result, but cannot change anything.
     again = client.get(f"{P}/join/{token_of(s)}/me", headers=ana).json()
     assert again["status"] == "submitted" and again["result"]["score"] == len(KEYS) - 1 and again["questions"] == []
-    assert answer(s, ana, KEYS[0], "A").json()["detail"]["code"] == "ALREADY_SUBMITTED"
+    assert answer(s, ana, KEYS[0], "A").json()["code"] == "ALREADY_SUBMITTED"
     assert submit(s, ana).status_code == 409
 
 
@@ -183,7 +183,7 @@ def test_names_must_be_unique_and_clean(teacher):
     s = start(teacher)
     join(s, "  Ana   Lopez ")
     r = client.post(f"{P}/join/{token_of(s)}/participants", json={"name": "Ana Lopez"})
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "NAME_TAKEN"
+    assert r.status_code == 409 and r.json()["code"] == "NAME_TAKEN"
     assert client.post(f"{P}/join/{token_of(s)}/participants", json={"name": "   "}).status_code == 422
     join(start(teacher), "Ana Lopez")  # the same name is fine in another session
 
@@ -195,7 +195,7 @@ def test_session_capacity(teacher, monkeypatch):
     s = start(teacher)
     join(s, "A")
     r = client.post(f"{P}/join/{token_of(s)}/participants", json={"name": "B"})
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "SESSION_FULL"
+    assert r.status_code == 409 and r.json()["code"] == "SESSION_FULL"
 
 
 # ---- credentials
@@ -233,12 +233,12 @@ def test_time_limit_is_enforced_on_the_server_clock(teacher, clock):
     assert answer(s, ana, "q2", "A").status_code == 204
     clock.advance(seconds=1)  # the window is closed from ends_at on
     late = answer(s, ana, "q3", "C")
-    assert late.status_code == 409 and late.json()["detail"]["code"] == "ALREADY_SUBMITTED"  # finalized on contact
+    assert late.status_code == 409 and late.json()["code"] == "ALREADY_SUBMITTED"  # finalized on contact
     state = client.get(f"{P}/join/{token_of(s)}/me", headers=ana).json()
     assert state["status"] == "submitted" and state["result"]["score"] == 2  # scored on what was saved
     assert client.get(f"{P}/join/{token_of(s)}").json()["status"] == "ended"
     r = client.post(f"{P}/join/{token_of(s)}/participants", json={"name": "Late"})
-    assert r.status_code == 409 and r.json()["detail"]["code"] == "SESSION_ENDED"
+    assert r.status_code == 409 and r.json()["code"] == "SESSION_ENDED"
 
 
 def test_dashboard_scores_students_who_never_submitted_after_time_is_up(teacher, clock):

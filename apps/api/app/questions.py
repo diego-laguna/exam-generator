@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from exam_core.errors import NotFound
+from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 
@@ -41,7 +42,7 @@ def get_owned_question(question_id: int, user: CurrentUser, db: DbSession) -> Ba
         select(BankQuestion).where(BankQuestion.id == question_id, BankQuestion.owner_id == user.id)
     )
     if question is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found")
+        raise NotFound("Question not found", code="QUESTION_NOT_FOUND")
     return question
 
 

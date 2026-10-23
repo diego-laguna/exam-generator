@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from exam_core.errors import Conflict, NotFound
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
@@ -51,7 +52,7 @@ def get_owned_set(set_id: int, user: CurrentUser, db: DbSession) -> QuestionSet:
         select(QuestionSet).where(QuestionSet.id == set_id, QuestionSet.owner_id == user.id)
     )
     if question_set is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Question set not found")
+        raise NotFound("Question set not found", code="QUESTION_SET_NOT_FOUND")
     return question_set
 
 
@@ -88,7 +89,7 @@ def _check_owned(db: Session, owner_id: int, question_ids: list[int]) -> None:
         )
     )
     if found != len(question_ids):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Question not found")
+        raise NotFound("Question not found", code="QUESTION_NOT_FOUND")
 
 
 def _set_items(db: Session, set_id: int, question_ids: list[int]) -> None:
@@ -214,7 +215,7 @@ def download_pdf(
     """`student`: questions only, with name/date lines. `teacher`: answers, explanations, sources."""
     questions = _questions(db, question_set)
     if not questions:
-        raise HTTPException(status.HTTP_409_CONFLICT, "The set has no questions")
+        raise Conflict("The set has no questions", code="QUESTION_SET_EMPTY")
     data = render_question_set_pdf(question_set.title, questions, version)
     safe = "".join(c if c.isalnum() else "-" for c in question_set.title).strip("-")[:60] or "questions"
     return Response(

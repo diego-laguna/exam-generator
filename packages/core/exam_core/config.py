@@ -11,6 +11,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # Logging (API and worker). "text" is easier to read locally.
+    log_level: str = "INFO"
+    log_format: Literal["json", "text"] = "json"
+
     # Ingestion (worker)
     embedding_model: str = "BAAI/bge-small-en-v1.5"  # 384 dims; see exam_core.embeddings.EMBEDDING_DIM
     embedding_cache_dir: str = "../../.cache/fastembed"  # repo root; the API and worker run from apps/*
