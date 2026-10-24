@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   python:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     services:
       db:
         image: pgvector/pgvector:pg17
@@ -33,7 +33,7 @@ jobs:
         working-directory: apps/worker
 
   images:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
       - run: docker build -f apps/api/Dockerfile -t exam-api:ci .
@@ -46,7 +46,7 @@ jobs:
           assert not heavy, heavy"
 
   terraform:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     defaults:
       run:
         working-directory: infra/terraform
@@ -58,7 +58,7 @@ jobs:
       - run: terraform validate
 
   js:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
