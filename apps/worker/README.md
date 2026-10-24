@@ -56,6 +56,35 @@ The worker must share the database, the PDF storage folder (or S3 bucket) and th
 
 **Two of the three tables are not used for generation yet.** `similar_chunks` (`apps/api/app/retrieval.py`) and the `chunks` and `sample_questions` tables belong to the legacy student module ("ready for M5").
 
+## Functional Programming
+
+LLM and embedding calls are slow, costly and non-deterministic, so everything around them is kept deterministic.
+
+**Pure core, thin shell.**
+- The core is pure functions: values in, new values out, no I/O, no DB session, no clock, no argument mutation.
+- The job handlers (`handlers.py`, `document_ingestion.py`, `source_ingestion.py`, the generation entry in `question_gen.py`) are the shell. They keep the embedding call, the LLM call, storage and queue I/O, and all database access.
+- Style: `map`/`filter`/comprehensions, tuples and frozen dataclasses, no module-level mutable state.
+
+**Where it lives.**
+- `worker/pure.py`: `question_slots`, `citation_snapshots`, `blind_validation`, `generation_failure`, `avoid_window`, `document_chunk_rows`.
+- `pdf_text.number_lines` and `chunk_lines`; `chunking` (a reduce over immutable tuples, frozen `Section` and `Chunk`).
+- `quote_matches`, `check_draft` and the prompt builders.
+- Tests: `tests/test_pure_functions.py`. Plain input and output, no mocks, fakes or DB.
+
+**Why.**
+1. **Testing without mocks.** The logic that decides whether to trust model output (checking that a quote appears in the cited page and lines, filtering and de-duplicating candidates) is cheap to test thoroughly.
+2. **A clear boundary around the non-deterministic part.** When quality regresses, you can tell whether the model or your logic changed. It fits the rule that generated questions need verified citations and blind validation.
+3. **Safe retries and redelivery.** Pure steps give the same result when re-run; only the shell must claim the row by status first. LLM pipelines fail and retry often (rate limits, timeouts, malformed output).
+4. **Immutable data, no shared state.** No step can mutate data another still needs (prompts, retrieved chunks, the avoid list). It is also simpler if jobs later run in parallel.
+5. **Composable pipelines.** Extract text, number lines, chunk, embed, retrieve, prompt, validate, persist: each pure stage can be swapped independently.
+6. **Reproducibility.** A recorded input (chunks, a model response) reproduces the exact result, so real failures become regression cases.
+
+**Trade-offs.**
+- In Python this is a style, not enforced.
+- `reduce` over tuples can read worse than a loop, and copying immutable structures costs a little.
+- The value is the pure core / thin shell split; the idioms are secondary.
+- It does not make the model deterministic. It isolates the non-determinism so you can test, retry and audit around it.
+
 ## Configuration
 
 Shared settings (`DATABASE_URL`/`DB_*`, `STORAGE_BACKEND`, `LOCAL_STORAGE_DIR`, `S3_BUCKET`, `SQS_QUEUE_URL`, `SQS_ENDPOINT_URL`, `JOB_STALE_MINUTES`) are described in [`apps/api/README.md`](../api/README.md). Worker-only settings:
