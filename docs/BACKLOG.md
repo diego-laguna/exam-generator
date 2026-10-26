@@ -5,6 +5,7 @@ Kept by the `orchestrator` agent. One line per task: what, owner (`api-dev`, `wo
 ## Now
 
 ## Next
+- Login rate limiting: Postgres-backed counter of failed logins per username and IP (new `login_attempts` table, a dependency that raises a `TOO_MANY_REQUESTS` DomainError -> 429 problem+json with `Retry-After`, trust `X-Forwarded-For` from the ALB only); reuse it for `/auth/refresh` and the public `/join/...` endpoints. No Redis. Owner: api-dev (core migration + API + `just gen-client`, error code in `apps/api/README.md`). Optional follow-up: AWS WAF rate rule on the ALB. Owner: infra-dev.
 - Question editing (teacher edits a generated question before saving it to a set). Owners: api-dev, then web-dev.
 - Run exam sessions from saved question sets, not only the built-in exam. Owners: api-dev, then web-dev.
 - Assign question sets to students. Owners: api-dev, then web-dev.
