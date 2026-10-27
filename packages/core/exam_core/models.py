@@ -110,6 +110,21 @@ class RevokedToken(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
 
 
+class LoginAttempt(Base):
+    """A failed login, used by the rate limiter. Rows older than the window are purged on write."""
+
+    __tablename__ = "login_attempts"
+    __table_args__ = (
+        Index("ix_login_attempts_username_created_at", "username", "created_at"),
+        Index("ix_login_attempts_ip_created_at", "ip", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    username: Mapped[str] = mapped_column(String(255))
+    ip: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class Domain(Base):
     """SAA-C03 exam domain. Ids 1-4 follow the exam guide numbering."""
 

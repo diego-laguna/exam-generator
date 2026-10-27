@@ -24,6 +24,11 @@ locals {
     { name = "SQS_REGION", value = var.region },
   ], var.web_base_url == "" ? [] : [{ name = "WEB_BASE_URL", value = var.web_base_url }])
 
+  # API only: the client IP for login rate limiting comes from X-Forwarded-For, trusting this many proxy hops (the ALB is one).
+  api_environment = concat(local.environment, [
+    { name = "TRUSTED_PROXY_HOPS", value = tostring(var.trusted_proxy_hops) },
+  ])
+
   worker_environment = concat(local.environment, [
     { name = "LLM_GENERATION_MODEL", value = var.llm_generation_model },
     { name = "LLM_VALIDATION_MODEL", value = var.llm_validation_model },
@@ -65,7 +70,7 @@ resource "aws_ecs_task_definition" "api" {
     image        = local.image
     essential    = true
     portMappings = [{ containerPort = 8000, protocol = "tcp" }]
-    environment  = local.environment
+    environment  = local.api_environment
     secrets      = local.app_secrets
     logConfiguration = {
       logDriver = "awslogs"

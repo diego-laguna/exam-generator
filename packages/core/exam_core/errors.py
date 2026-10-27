@@ -67,6 +67,11 @@ class Conflict(DomainError):
     code = "CONFLICT"
 
 
+class TooManyRequests(DomainError):
+    status = 429
+    code = "TOO_MANY_REQUESTS"
+
+
 class PayloadTooLarge(DomainError):
     status = 413
     code = "PAYLOAD_TOO_LARGE"

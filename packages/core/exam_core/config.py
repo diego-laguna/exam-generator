@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     log_format: Literal["json", "text"] = "json"
 
+    # Login rate limiting (API): failed attempts per username / client IP in a sliding window.
+    login_max_failures_per_username: int = 5
+    login_max_failures_per_ip: int = 20
+    login_window_seconds: int = 900
+    # Number of trusted proxies (ALB = 1) in front of the API. 0: ignore X-Forwarded-For.
+    trusted_proxy_hops: int = 0
+
     # Ingestion (worker)
     embedding_model: str = "BAAI/bge-small-en-v1.5"  # 384 dims; see exam_core.embeddings.EMBEDDING_DIM
     embedding_cache_dir: str = "../../.cache/fastembed"  # repo root; the API and worker run from apps/*

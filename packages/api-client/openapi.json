@@ -64,6 +64,16 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too many failed logins; see Retry-After",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
           }
         }
       }

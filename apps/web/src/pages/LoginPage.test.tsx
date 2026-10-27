@@ -57,6 +57,40 @@ describe("LoginPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Incorrect username or password");
   });
 
+  describe("rate limiting", () => {
+    async function failLogin(res: () => Response) {
+      stubApi({
+        "POST /api/v1/auth/refresh": () => problem(401, "UNAUTHORIZED", "no session"),
+        "POST /api/v1/auth/login": res,
+      });
+      renderLogin();
+      await userEvent.type(await screen.findByLabelText("Username"), "dave");
+      await userEvent.type(screen.getByLabelText("Password"), "wrong");
+      await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
+      return screen.findByRole("alert");
+    }
+    const limited = (retryAfter?: string) => () => {
+      const base = problem(429, "TOO_MANY_REQUESTS", "Too many failed login attempts");
+      const headers = new Headers(base.headers);
+      if (retryAfter !== undefined) headers.set("Retry-After", retryAfter);
+      return new Response(base.body, { status: 429, headers });
+    };
+
+    it("shows minutes rounded up from Retry-After", async () => {
+      const alert = await failLogin(limited("900"));
+      expect(alert).toHaveTextContent("Too many failed attempts. Try again in 15 minutes.");
+      expect(alert).not.toHaveTextContent("Incorrect username or password");
+    });
+
+    it("shows seconds below a minute", async () => {
+      expect(await failLogin(limited("30"))).toHaveTextContent("Try again in 30 seconds.");
+    });
+
+    it("falls back to a generic message without the header", async () => {
+      expect(await failLogin(limited())).toHaveTextContent("Too many failed attempts. Try again later.");
+    });
+  });
+
   it("skips the form when a session can be restored from the cookie", async () => {
     stubApi({ "POST /api/v1/auth/refresh": () => json({ access_token: fakeToken("teacher") }) });
     renderLogin();
