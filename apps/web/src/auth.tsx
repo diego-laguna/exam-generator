@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 
-import { ApiError, toApiError } from "./errors";
+import { ApiError, toApiError, tooManyAttemptsMessage } from "./errors";
 import { api, onSessionExpired, refreshAccessToken, roleFromToken, setAccessToken } from "./session";
 
 type AuthState =
@@ -40,8 +40,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
     if (error !== undefined || !data) {
-      const apiError = toApiError(response.status, error);
-      throw response.status === 401 ? new ApiError("Incorrect username or password", 401) : apiError;
+      const apiError = toApiError(response.status, error, response);
+      if (response.status === 401) throw new ApiError("Incorrect username or password", 401);
+      if (response.status === 429 && apiError.code === "TOO_MANY_REQUESTS") {
+        throw new ApiError(
+          tooManyAttemptsMessage(apiError.retryAfterSeconds),
+          429,
+          apiError.code,
+          apiError.requestId,
+          [],
+          apiError.retryAfterSeconds,
+        );
+      }
+      throw apiError;
     }
     setAccessToken(data.access_token);
     setState({ status: "authenticated", role: roleFromToken(data.access_token) });

@@ -10,7 +10,15 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
+from app.clock import ClockDep
+from app.errors import ProblemDetail
 from app.dependencies import DbSession, get_current_claims
+from app.rate_limit import (
+    LoginIdentity,
+    check_login_allowed,
+    clear_login_failures,
+    record_login_failure,
+)
 from exam_core.models import RefreshToken, RevokedToken, User
 from app.security import (
     DUMMY_HASH,
@@ -91,6 +99,7 @@ def _invalid_credentials() -> Unauthenticated:
     "/login",
     response_model=TokenPair,
     summary="Sign in",
+    responses={429: {"model": ProblemDetail, "description": "Too many failed logins; see Retry-After"}},
     description=(
         "Exchange a username and password (OAuth2 password form) for a short-lived access token and a single-use refresh token. Browsers also receive the refresh token as an httpOnly cookie."
         "\n\n"
@@ -98,7 +107,11 @@ def _invalid_credentials() -> Unauthenticated:
     ),
 )
 def login(
-    form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession, response: Response
+    form: Annotated[OAuth2PasswordRequestForm, Depends()],
+    db: DbSession,
+    response: Response,
+    identity: Annotated[LoginIdentity, Depends(check_login_allowed)],
+    clock: ClockDep,
 ):
     user = db.scalar(select(User).where(User.username == form.username))
     # Always run a hash verification so timing doesn't reveal valid usernames.
@@ -106,7 +119,10 @@ def login(
         form.password, user.password_hash if user else DUMMY_HASH
     )
     if not (user and user.is_active and password_ok):
+        record_login_failure(db, identity, clock())
+        db.commit()
         raise _invalid_credentials()
+    clear_login_failures(db, identity)
     db.execute(
         delete(RefreshToken).where(
             RefreshToken.user_id == user.id, RefreshToken.expires_at < datetime.now(UTC)

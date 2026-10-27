@@ -49,6 +49,12 @@ variable "web_base_url" {
   default     = ""
 }
 
+variable "trusted_proxy_hops" {
+  description = "Proxies in front of the API that append the client IP to X-Forwarded-For (the ALB = 1). Used for per-IP login rate limiting; raise it if you put CloudFront or another proxy in front of the ALB, 0 ignores the header."
+  type        = number
+  default     = 1
+}
+
 variable "alert_email" {
   description = "Email address for queue alarms (dead-letter queue not empty, backlog too old). Empty = no subscriber. AWS sends a confirmation link first."
   type        = string
