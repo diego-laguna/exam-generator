@@ -4,4 +4,5 @@ region = "us-east-1"
 # desired_count        = 1  # after the API image is pushed
 # worker_desired_count = 1  # after the worker image is pushed and the Anthropic key is set
 # web_base_url         = "https://exams.example.com"  # join links for exam sessions point here
+# trusted_proxy_hops   = 1  # proxies in front of the API (ALB = 1; +1 if you add CloudFront)
 # alert_email          = "you@example.com"  # queue alarms by email (confirm the AWS link)

@@ -250,11 +250,12 @@ Code raises `exam_core.errors` exceptions (`NotFound`, `Conflict`, `InvalidInput
 | 404 | Unknown or not-owned resource (never 403 for foreign ids) |
 | 409 | State conflicts and duplicates |
 | 413 | Upload over the size cap |
+| 429 | Too many failed logins (`Retry-After` header) |
 | 422 | Invalid request or semantically invalid input |
 | 503 | Queue or storage down or not configured |
 | 500 / 501 | Unexpected / placeholder |
 
-Codes: `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `INVALID_TOKEN`, `INVALID_REFRESH_TOKEN`, `FORBIDDEN`, `NOT_FOUND`, `METHOD_NOT_ALLOWED`, `DOCUMENT_NOT_FOUND`, `QUESTION_NOT_FOUND`, `QUESTION_SET_NOT_FOUND`, `GENERATION_NOT_FOUND`, `SOURCE_NOT_FOUND`, `EXAM_NOT_FOUND`, `EXAM_SESSION_NOT_FOUND`, `PARTICIPANT_NOT_FOUND`, `USERNAME_TAKEN`, `DOCUMENT_DUPLICATE`, `SOURCE_DUPLICATE`, `DOCUMENT_NOT_READY`, `JOB_IN_PROGRESS`, `QUESTION_SET_EMPTY`, `EXAM_NOT_STARTED`, `EXAM_WINDOW_CLOSED`, `EXAM_NOT_AVAILABLE`, `EXAM_ALREADY_STARTED`, `RESULTS_LOCKED`, `SESSION_ENDED`, `SESSION_FULL`, `NAME_TAKEN`, `ALREADY_SUBMITTED`, `FILE_TOO_LARGE`, `NOT_A_PDF`, `VALIDATION_ERROR`, `INVALID_OPTION`, `DURATION_TOO_LONG`, `UNKNOWN_DOMAIN`, `UNKNOWN_TASK_STATEMENT`, `TASK_DOMAIN_MISMATCH`, `QUEUE_NOT_CONFIGURED`, `QUEUE_UNAVAILABLE`, `STORAGE_UNAVAILABLE`, `NOT_IMPLEMENTED`, `INTERNAL_ERROR`.
+Codes: `UNAUTHENTICATED`, `INVALID_CREDENTIALS`, `INVALID_TOKEN`, `INVALID_REFRESH_TOKEN`, `TOO_MANY_REQUESTS`, `FORBIDDEN`, `NOT_FOUND`, `METHOD_NOT_ALLOWED`, `DOCUMENT_NOT_FOUND`, `QUESTION_NOT_FOUND`, `QUESTION_SET_NOT_FOUND`, `GENERATION_NOT_FOUND`, `SOURCE_NOT_FOUND`, `EXAM_NOT_FOUND`, `EXAM_SESSION_NOT_FOUND`, `PARTICIPANT_NOT_FOUND`, `USERNAME_TAKEN`, `DOCUMENT_DUPLICATE`, `SOURCE_DUPLICATE`, `DOCUMENT_NOT_READY`, `JOB_IN_PROGRESS`, `QUESTION_SET_EMPTY`, `EXAM_NOT_STARTED`, `EXAM_WINDOW_CLOSED`, `EXAM_NOT_AVAILABLE`, `EXAM_ALREADY_STARTED`, `RESULTS_LOCKED`, `SESSION_ENDED`, `SESSION_FULL`, `NAME_TAKEN`, `ALREADY_SUBMITTED`, `FILE_TOO_LARGE`, `NOT_A_PDF`, `VALIDATION_ERROR`, `INVALID_OPTION`, `DURATION_TOO_LONG`, `UNKNOWN_DOMAIN`, `UNKNOWN_TASK_STATEMENT`, `TASK_DOMAIN_MISMATCH`, `QUEUE_NOT_CONFIGURED`, `QUEUE_UNAVAILABLE`, `STORAGE_UNAVAILABLE`, `NOT_IMPLEMENTED`, `INTERNAL_ERROR`.
 
 Logs are one JSON object per line on stderr (`timestamp`, `level`, `logger`, `message`, `exc_info`, plus context such as `request_id`), shared with the worker through `exam_core.logging`. The API writes one access line per request (`method`, `path` without the query string, `status`, `duration_ms`). Set `LOG_LEVEL` and `LOG_FORMAT=text` for readable local output. Tokens, passwords, join tokens and Authorization/cookie headers are never logged.
 
@@ -323,6 +324,9 @@ Settings come from environment variables or a `.env` file (see `.env.example`).
 | `UPLOAD_MAX_BYTES` | 25 MB | Upload size limit |
 | `GENERATION_MAX_QUESTIONS` | 50 | Per request |
 | `JOB_STALE_MINUTES` | `30` | A job or document still running after this long is reported as failed |
+| `LOGIN_MAX_FAILURES_PER_USERNAME` / `LOGIN_MAX_FAILURES_PER_IP` | `5` / `20` | Failed logins allowed per username / client IP within the window; beyond that `/auth/login` answers 429 `TOO_MANY_REQUESTS` with `Retry-After` (seconds). A successful login clears the username's failures |
+| `LOGIN_WINDOW_SECONDS` | `900` | Sliding window of the login limiter |
+| `TRUSTED_PROXY_HOPS` | `0` | Proxies in front of the API (ALB = `1`). When > 0 the client IP is the `X-Forwarded-For` entry that many hops from the right; when 0 the header is ignored |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `15` | Access token lifetime |
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh token lifetime |
 | `EXAM_MINUTES_PER_QUESTION` | `2` | Exam-mode time limit per question |
